@@ -87,6 +87,7 @@ function toLabCard(lab) {
 
   return {
     id: lab.id,
+    slug: lab.slug,
     title: lab.title,
     description: lab.description,
     difficulty: difficultyLabels[lab.difficulty] || capitalize(String(lab.difficulty).toLowerCase()),
@@ -94,6 +95,545 @@ function toLabCard(lab) {
     time: `${lab.estimatedMinutes} min`,
     tags: tags.map(capitalize),
   };
+}
+
+// ---------- "Input validation" practice: fictional form + checks ----------
+// Everything below runs in the browser only. Nothing is sent anywhere.
+
+const practiceStepTitles = ["Learn", "Try it", "Quiz", "Done"];
+
+function makeResult(valid, message) {
+  return { valid: valid, message: message };
+}
+
+// Each function checks one value and returns { valid, message }.
+function validateUsername(value) {
+  if (value.length === 0) return makeResult(false, "Username is required.");
+  if (!/^[A-Za-z0-9_]+$/.test(value)) {
+    return makeResult(false, "Use only letters, numbers, and underscores.");
+  }
+  if (value.length < 3) return makeResult(false, "Too short. Use at least 3 characters.");
+  if (value.length > 12) return makeResult(false, "Too long. Use at most 12 characters.");
+  return makeResult(true, "Looks good.");
+}
+
+function validateAge(value) {
+  const text = value.trim();
+  if (text === "") return makeResult(false, "Age is required.");
+  if (!/^[0-9]+$/.test(text)) {
+    return makeResult(false, "Use digits only (no letters, minus signs, or decimals).");
+  }
+  const age = Number(text);
+  if (age < 13 || age > 120) return makeResult(false, "Age must be between 13 and 120.");
+  return makeResult(true, "Looks good.");
+}
+
+function validateEmail(value) {
+  const text = value.trim();
+  if (text === "") return makeResult(false, "Email is required.");
+  // A simple pattern for practice: something@something.something
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+    return makeResult(false, "Enter an email like name@example.com.");
+  }
+  return makeResult(true, "Looks good.");
+}
+
+const practiceFields = [
+  {
+    id: "username",
+    label: "Username",
+    hint: "3 to 12 characters. Letters, numbers, and underscores only.",
+    inputMode: "text",
+    validate: validateUsername,
+    samples: [
+      { value: "maya_42", kind: "valid" },
+      { value: "ab", kind: "invalid" },
+      { value: "bad name!", kind: "invalid" },
+      { value: "this_name_is_way_too_long", kind: "invalid" },
+    ],
+  },
+  {
+    id: "age",
+    label: "Age",
+    hint: "A whole number from 13 to 120.",
+    inputMode: "numeric",
+    validate: validateAge,
+    samples: [
+      { value: "19", kind: "valid" },
+      { value: "7", kind: "invalid" },
+      { value: "-5", kind: "invalid" },
+      { value: "abc", kind: "invalid" },
+    ],
+  },
+  {
+    id: "email",
+    label: "Email",
+    hint: "Something like name@example.com.",
+    inputMode: "email",
+    validate: validateEmail,
+    samples: [
+      { value: "maya@example.com", kind: "valid" },
+      { value: "maya@", kind: "invalid" },
+      { value: "no-at-sign.com", kind: "invalid" },
+    ],
+  },
+];
+
+const emptyValues = { username: "", age: "", email: "" };
+
+const quizQuestion =
+  "Your sign-up form already checks the username in the browser. Why should the server check it again?";
+
+const quizCorrectId = "skipped";
+
+const quizOptions = [
+  {
+    id: "skipped",
+    text: "Because anyone can send data to the server without using your form, so browser checks can be skipped.",
+  },
+  {
+    id: "browsers",
+    text: "Because browsers are not able to check text at all.",
+  },
+  {
+    id: "faster",
+    text: "Because checking twice always makes the page load faster.",
+  },
+];
+
+// The whole practice experience. It lives inside the lab modal.
+function InputValidationPractice({ onBackToPreview, onStatus }) {
+  const [step, setStep] = useState(0);
+
+  // Step 2 (Try it) state
+  const [values, setValues] = useState(emptyValues);
+  const [touched, setTouched] = useState({});
+  const [checkedInvalid, setCheckedInvalid] = useState(false);
+  const [checkedValid, setCheckedValid] = useState(false);
+  const [formMessage, setFormMessage] = useState(null);
+
+  // Step 3 (Quiz) state
+  const [answer, setAnswer] = useState("");
+  const [quizResult, setQuizResult] = useState(""); // "", "correct", or "wrong"
+
+  // Each step has a heading. We move keyboard focus there when the step changes.
+  const headingRef = useRef(null);
+
+  useEffect(() => {
+    if (headingRef.current) headingRef.current.focus();
+  }, [step]);
+
+  // Check every field every time the component draws.
+  const results = {};
+  practiceFields.forEach((field) => {
+    results[field.id] = field.validate(values[field.id]);
+  });
+
+  function handleChange(fieldId, newValue) {
+    setValues((previous) => ({ ...previous, [fieldId]: newValue }));
+    setTouched((previous) => ({ ...previous, [fieldId]: true }));
+    setFormMessage(null);
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault(); // stay on the page: there is no server in this exercise
+
+    // After the first submit, show feedback for every field.
+    const allTouched = {};
+    practiceFields.forEach((field) => {
+      allTouched[field.id] = true;
+    });
+    setTouched(allTouched);
+
+    const invalidCount = practiceFields.filter(
+      (field) => !results[field.id].valid
+    ).length;
+
+    if (invalidCount > 0) {
+      setCheckedInvalid(true);
+      setFormMessage({
+        type: "invalid",
+        text:
+          invalidCount === 1
+            ? "1 field needs fixing. Read the message under it, then try again."
+            : `${invalidCount} fields need fixing. Read the message under each one, then try again.`,
+      });
+    } else {
+      setCheckedValid(true);
+      setFormMessage({
+        type: "valid",
+        text: "Every field passed. In a real app, the server would check these values again before saving anything.",
+      });
+    }
+  }
+
+  function handleClearForm() {
+    setValues(emptyValues);
+    setTouched({});
+    setFormMessage(null);
+  }
+
+  function handleSelectAnswer(optionId) {
+    setAnswer(optionId);
+    setQuizResult("");
+  }
+
+  function handleCheckAnswer() {
+    setQuizResult(answer === quizCorrectId ? "correct" : "wrong");
+  }
+
+  function handleFinish() {
+    setStep(3);
+    onStatus("Completed the Input validation practice. Nice work!");
+  }
+
+  function handleRestart() {
+    setValues(emptyValues);
+    setTouched({});
+    setCheckedInvalid(false);
+    setCheckedValid(false);
+    setFormMessage(null);
+    setAnswer("");
+    setQuizResult("");
+    setStep(0);
+    onStatus("Practice restarted. Begin again from step 1.");
+  }
+
+  const goalsDone = checkedInvalid && checkedValid;
+
+  return (
+    <div className="practice">
+      <ol className="practice-steps" aria-label="Practice progress">
+        {practiceStepTitles.map((title, index) => {
+          let stateClass = "";
+          if (index === step) stateClass = " is-current";
+          else if (index < step) stateClass = " is-done";
+
+          return (
+            <li
+              key={title}
+              className={`practice-step${stateClass}`}
+              aria-current={index === step ? "step" : undefined}
+            >
+              <span className="practice-step-number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="practice-step-label">{title}</span>
+            </li>
+          );
+        })}
+      </ol>
+
+      {/* Step 1: explain the idea */}
+      {step === 0 && (
+        <>
+          <h3 className="practice-heading" tabIndex={-1} ref={headingRef}>
+            Why inputs are untrusted
+          </h3>
+          <p className="practice-text">
+            Anything a person types into a form is input. Your app cannot
+            control what arrives. People make typos, copy and paste odd text,
+            and sometimes data is sent on purpose to cause trouble. That is why
+            we treat all input as untrusted until it has been checked.
+          </p>
+          <ul className="practice-list">
+            <li>Check the type: is it a number when it should be a number?</li>
+            <li>Check the length: not empty, and not unreasonably long.</li>
+            <li>Check the format: does it look like an email address?</li>
+            <li>
+              Prefer allow-lists: describe exactly what is allowed and reject
+              everything else.
+            </li>
+          </ul>
+          <p className="practice-note">
+            Everything here runs in your browser on a fictional sign-up form.
+            Nothing is sent anywhere.
+          </p>
+          <div className="practice-actions">
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => setStep(1)}
+            >
+              Continue
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Step 2: try the form */}
+      {step === 1 && (
+        <>
+          <h3 className="practice-heading" tabIndex={-1} ref={headingRef}>
+            Try the Lab Club sign-up form
+          </h3>
+          <p className="practice-text">
+            Type your own values or tap a sample. The checks run as you type.
+            Press &ldquo;Check form&rdquo; to submit.
+          </p>
+
+          <ul className="practice-checklist" aria-label="Goals">
+            <li className={`practice-check${checkedInvalid ? " is-done" : ""}`}>
+              <span className="check-mark" aria-hidden="true">
+                {checkedInvalid ? "✓" : "○"}
+              </span>
+              <span>
+                Submit the form with a bad value and read the feedback.
+                <span className="visually-hidden">
+                  {checkedInvalid ? " Done." : " Not done yet."}
+                </span>
+              </span>
+            </li>
+            <li className={`practice-check${checkedValid ? " is-done" : ""}`}>
+              <span className="check-mark" aria-hidden="true">
+                {checkedValid ? "✓" : "○"}
+              </span>
+              <span>
+                Fix every field and submit a form that passes all checks.
+                <span className="visually-hidden">
+                  {checkedValid ? " Done." : " Not done yet."}
+                </span>
+              </span>
+            </li>
+          </ul>
+
+          <form
+            className="practice-form"
+            onSubmit={handleSubmit}
+            noValidate
+            aria-label="Fictional Lab Club sign-up form"
+          >
+            {practiceFields.map((field) => {
+              const result = results[field.id];
+              const showFeedback = Boolean(touched[field.id]);
+              let stateClass = "";
+              if (showFeedback) {
+                stateClass = result.valid ? " is-valid" : " is-invalid";
+              }
+
+              const inputId = `practice-${field.id}`;
+
+              return (
+                <div key={field.id} className="practice-field">
+                  <label className="field-label" htmlFor={inputId}>
+                    {field.label}
+                  </label>
+                  <p className="field-hint" id={`${inputId}-hint`}>
+                    {field.hint}
+                  </p>
+                  <input
+                    id={inputId}
+                    className={`field-input${stateClass}`}
+                    type="text"
+                    inputMode={field.inputMode}
+                    autoComplete="off"
+                    spellCheck="false"
+                    value={values[field.id]}
+                    onChange={(event) =>
+                      handleChange(field.id, event.target.value)
+                    }
+                    aria-describedby={`${inputId}-hint ${inputId}-feedback`}
+                    aria-invalid={showFeedback && !result.valid ? "true" : "false"}
+                  />
+                  <p
+                    id={`${inputId}-feedback`}
+                    className={`field-feedback${stateClass}`}
+                    aria-live="polite"
+                  >
+                    {showFeedback
+                      ? (result.valid ? "Valid: " : "Invalid: ") + result.message
+                      : ""}
+                  </p>
+
+                  <div
+                    className="sample-list"
+                    role="group"
+                    aria-label={`Sample values for ${field.label}`}
+                  >
+                    <span className="sample-label">Try a sample:</span>
+                    {field.samples.map((sample) => (
+                      <button
+                        key={sample.value}
+                        type="button"
+                        className={`sample-chip sample-chip-${sample.kind}`}
+                        onClick={() => handleChange(field.id, sample.value)}
+                      >
+                        <span className="sample-kind">
+                          {sample.kind === "valid" ? "Valid" : "Invalid"}
+                        </span>
+                        <span className="sample-value">{sample.value}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            <p
+              className={`practice-result${
+                formMessage
+                  ? formMessage.type === "valid"
+                    ? " is-valid"
+                    : " is-invalid"
+                  : ""
+              }`}
+              role="status"
+            >
+              {formMessage ? formMessage.text : ""}
+            </p>
+
+            <div className="practice-actions">
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={handleClearForm}
+              >
+                Clear form
+              </button>
+              <button type="submit" className="button button-secondary">
+                Check form
+              </button>
+            </div>
+          </form>
+
+          {!goalsDone && (
+            <p className="practice-note">
+              Complete both goals to continue.
+            </p>
+          )}
+
+          <div className="practice-actions">
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => setStep(0)}
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={!goalsDone}
+              onClick={() => setStep(2)}
+            >
+              Continue
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Step 3: knowledge question */}
+      {step === 2 && (
+        <>
+          <h3 className="practice-heading" tabIndex={-1} ref={headingRef}>
+            Knowledge check
+          </h3>
+
+          <fieldset className="quiz">
+            <legend className="quiz-legend">{quizQuestion}</legend>
+            <div className="quiz-options">
+              {quizOptions.map((option) => (
+                <label
+                  key={option.id}
+                  className={`quiz-option${
+                    answer === option.id ? " is-selected" : ""
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="validation-quiz"
+                    className="quiz-input"
+                    value={option.id}
+                    checked={answer === option.id}
+                    onChange={() => handleSelectAnswer(option.id)}
+                  />
+                  <span>{option.text}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <p
+            className={`quiz-feedback${
+              quizResult === "correct"
+                ? " is-valid"
+                : quizResult === "wrong"
+                ? " is-invalid"
+                : ""
+            }`}
+            role="status"
+          >
+            {quizResult === "correct" &&
+              "Correct. Treat every request as untrusted: browser checks help users, but the server must check again."}
+            {quizResult === "wrong" &&
+              "Not quite. Think about who or what can send data to a server besides your own form."}
+          </p>
+
+          <div className="practice-actions">
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => setStep(1)}
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={answer === "" || quizResult === "correct"}
+              onClick={handleCheckAnswer}
+            >
+              Check answer
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={quizResult !== "correct"}
+              onClick={handleFinish}
+            >
+              Finish
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Step 4: completion */}
+      {step === 3 && (
+        <>
+          <h3 className="practice-heading" tabIndex={-1} ref={headingRef}>
+            Practice complete
+          </h3>
+          <p className="practice-text">
+            Nice work! You tried valid and invalid values on a fictional form
+            and answered the knowledge check correctly.
+          </p>
+          <ul className="practice-summary">
+            <li>Treat everything a user sends as untrusted.</li>
+            <li>Check type, length, and format, and prefer allow-lists.</li>
+            <li>
+              Browser checks help users, but the server must check again.
+            </li>
+          </ul>
+          <div className="practice-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={handleRestart}
+            >
+              Restart practice
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={onBackToPreview}
+            >
+              Back to lab preview
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 // ---------- Component ----------
@@ -114,6 +654,12 @@ function App() {
   const [selectedLab, setSelectedLab] = useState(null);
   const isModalOpen = selectedLab !== null;
 
+  // True while the modal is showing the interactive practice instead of the preview.
+  const [isPracticing, setIsPracticing] = useState(false);
+
+  // Only the Input validation lab has a practice exercise for now.
+  const canPractice = isModalOpen && selectedLab.slug === "input-validation";
+
   // A reference to the glowing circle that follows the mouse.
   const cursorGlowRef = useRef(null);
 
@@ -130,12 +676,24 @@ function App() {
   function openLabPreview(lab, event) {
     // Remember which button opened the modal so focus can return to it.
     lastFocusedRef.current = event.currentTarget;
+    setIsPracticing(false);
     setSelectedLab(lab);
     handleAction(`Previewing the "${lab.title}" lab.`);
   }
 
   function closeLabPreview() {
     setSelectedLab(null);
+    setIsPracticing(false);
+  }
+
+  function startPractice() {
+    setIsPracticing(true);
+    handleAction(`Practicing the "${selectedLab.title}" lab.`);
+  }
+
+  function backToPreview() {
+    setIsPracticing(false);
+    handleAction(`Previewing the "${selectedLab.title}" lab.`);
   }
 
   // Only close when the press AND the click both happen on the dark backdrop,
@@ -272,7 +830,7 @@ function App() {
     };
   }, []);
 
-  // Modal behavior: runs while the preview modal is open.
+  // Modal behavior: runs while the modal is open.
   // - stops the page behind it from scrolling
   // - moves focus into the modal
   // - closes on Escape and keeps Tab focus inside the modal
@@ -299,13 +857,16 @@ function App() {
       if (event.key === "Escape") {
         event.preventDefault();
         setSelectedLab(null);
+        setIsPracticing(false);
         return;
       }
 
-      // Keep Tab and Shift+Tab cycling through the modal's own buttons.
+      // Keep Tab and Shift+Tab cycling through the modal's own controls.
       if (event.key !== "Tab" || !dialog) return;
 
-      const focusable = dialog.querySelectorAll("button:not([disabled])");
+      const focusable = dialog.querySelectorAll(
+        "button:not([disabled]), input:not([disabled])"
+      );
       if (focusable.length === 0) return;
 
       const first = focusable[0];
@@ -330,6 +891,14 @@ function App() {
       if (lastFocusedRef.current) lastFocusedRef.current.focus();
     };
   }, [isModalOpen]);
+
+  // When the modal goes back to the preview view, focus the X button again.
+  // (While practicing, the practice steps move focus to their own headings.)
+  useEffect(() => {
+    if (isModalOpen && !isPracticing && closeButtonRef.current) {
+      closeButtonRef.current.focus();
+    }
+  }, [isModalOpen, isPracticing]);
 
   return (
     <div className="app">
@@ -607,7 +1176,7 @@ function App() {
         </div>
       </footer>
 
-      {/* Lab preview modal */}
+      {/* Lab modal: preview view, or the interactive practice view */}
       {selectedLab && (
         <div
           className="modal-backdrop"
@@ -615,16 +1184,18 @@ function App() {
           onClick={handleBackdropClick}
         >
           <div
-            className="modal"
+            className={`modal${isPracticing ? " modal-wide" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="lab-modal-title"
-            aria-describedby="lab-modal-description"
+            aria-describedby={isPracticing ? undefined : "lab-modal-description"}
             ref={dialogRef}
           >
             <div className="modal-header">
               <div>
-                <p className="modal-eyebrow">Lab preview</p>
+                <p className="modal-eyebrow">
+                  {isPracticing ? "Practice lab" : "Lab preview"}
+                </p>
                 <h2 id="lab-modal-title" className="modal-title">
                   {selectedLab.title}
                 </h2>
@@ -633,54 +1204,77 @@ function App() {
                 type="button"
                 className="modal-close"
                 ref={closeButtonRef}
-                aria-label="Close lab preview"
+                aria-label={
+                  isPracticing ? "Close practice" : "Close lab preview"
+                }
                 onClick={closeLabPreview}
               >
                 <span aria-hidden="true">&times;</span>
               </button>
             </div>
 
-            <p id="lab-modal-description" className="modal-description">
-              {selectedLab.description}
-            </p>
+            {isPracticing ? (
+              <InputValidationPractice
+                onBackToPreview={backToPreview}
+                onStatus={handleAction}
+              />
+            ) : (
+              <>
+                <p id="lab-modal-description" className="modal-description">
+                  {selectedLab.description}
+                </p>
 
-            <dl className="lab-meta modal-meta">
-              <div className="meta-item">
-                <dt>Difficulty</dt>
-                <dd>
-                  <span className={`badge ${selectedLab.badgeClass}`}>
-                    {selectedLab.difficulty}
-                  </span>
-                </dd>
-              </div>
-              <div className="meta-item">
-                <dt>Estimated time</dt>
-                <dd>{selectedLab.time}</dd>
-              </div>
-            </dl>
+                <dl className="lab-meta modal-meta">
+                  <div className="meta-item">
+                    <dt>Difficulty</dt>
+                    <dd>
+                      <span className={`badge ${selectedLab.badgeClass}`}>
+                        {selectedLab.difficulty}
+                      </span>
+                    </dd>
+                  </div>
+                  <div className="meta-item">
+                    <dt>Estimated time</dt>
+                    <dd>{selectedLab.time}</dd>
+                  </div>
+                </dl>
 
-            <ul className="tag-list" aria-label="Topics">
-              {selectedLab.tags.map((tag) => (
-                <li key={tag} className="tag">
-                  {tag}
-                </li>
-              ))}
-            </ul>
+                <ul className="tag-list" aria-label="Topics">
+                  {selectedLab.tags.map((tag) => (
+                    <li key={tag} className="tag">
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
 
-            <p className="modal-note">
-              This is a preview. Labs run in isolated, intentionally vulnerable
-              practice environments.
-            </p>
+                <p className="modal-note">
+                  {canPractice
+                    ? "Ready to try it? The practice runs in your browser on a fictional form."
+                    : "This is a preview. Labs run in isolated, intentionally vulnerable practice environments."}
+                </p>
 
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="button button-primary"
-                onClick={closeLabPreview}
-              >
-                Close
-              </button>
-            </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className={`button ${
+                      canPractice ? "button-ghost" : "button-primary"
+                    }`}
+                    onClick={closeLabPreview}
+                  >
+                    Close
+                  </button>
+                  {canPractice && (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={startPractice}
+                    >
+                      Start practice
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
