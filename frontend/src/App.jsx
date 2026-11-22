@@ -4,6 +4,22 @@ import "./App.css";
 // Where the backend API runs during development.
 const LABS_URL = "http://localhost:4000/api/labs";
 
+const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
+
+function loadCompletedLabSlugs() {
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(PROGRESS_STORAGE_KEY) || "[]"
+    );
+
+    return Array.isArray(saved)
+      ? [...new Set(saved.filter((slug) => typeof slug === "string"))]
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 // ---------- Mock data (no network requests) ----------
 const roles = [
   {
@@ -29,7 +45,7 @@ const roles = [
 ];
 
 const stats = [
-  { id: "completed", label: "Labs completed", value: "7", note: "+2 this week" },
+  { id: "completed", label: "Labs completed", value: "0", note: "Saved on this device" },
   { id: "streak", label: "Practice streak", value: "5 days", note: "Best: 9 days" },
   { id: "hours", label: "Hours practiced", value: "12.5", note: "Goal: 20 hours" },
   { id: "score", label: "Average score", value: "86%", note: "Up 4% this month" },
@@ -202,7 +218,7 @@ const quizOptions = [
 ];
 
 // The whole practice experience. It lives inside the lab modal.
-function InputValidationPractice({ onBackToPreview, onStatus }) {
+function InputValidationPractice({ onBackToPreview, onStatus, onComplete }) {
   const [step, setStep] = useState(0);
 
   // Step 2 (Try it) state
@@ -284,6 +300,7 @@ function InputValidationPractice({ onBackToPreview, onStatus }) {
 
   function handleFinish() {
     setStep(3);
+    onComplete("input-validation");
     onStatus("Completed the Input validation practice. Nice work!");
   }
 
@@ -647,8 +664,22 @@ function App() {
   // labsStatus is one of: "loading", "success", or "error".
   const [labs, setLabs] = useState([]);
   const [labsStatus, setLabsStatus] = useState("loading");
-  // Changing this number makes the labs load again ("Try again" button).
   const [labsReloadCount, setLabsReloadCount] = useState(0);
+
+  const [completedLabSlugs, setCompletedLabSlugs] = useState(
+    loadCompletedLabSlugs
+  );
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PROGRESS_STORAGE_KEY,
+        JSON.stringify(completedLabSlugs)
+      );
+    } catch {
+      // Progress still works for this visit if browser storage is unavailable.
+    }
+  }, [completedLabSlugs]);
 
   // The lab currently shown in the preview modal (null = modal is closed).
   const [selectedLab, setSelectedLab] = useState(null);
@@ -671,6 +702,12 @@ function App() {
 
   function handleAction(message) {
     setStatusMessage(message);
+  }
+
+  function markLabComplete(slug) {
+    setCompletedLabSlugs((current) =>
+      current.includes(slug) ? current : [...current, slug]
+    );
   }
 
   function openLabPreview(lab, event) {
@@ -952,7 +989,11 @@ function App() {
               {stats.map((stat) => (
                 <li key={stat.id} className="panel stat-card">
                   <span className="stat-label">{stat.label}</span>
-                  <strong className="stat-value">{stat.value}</strong>
+                <strong className="stat-value">
+                  {stat.id === "completed"
+                    ? completedLabSlugs.length
+                    : stat.value}
+                </strong>
                   <span className="stat-note">{stat.note}</span>
                 </li>
               ))}
@@ -1217,6 +1258,7 @@ function App() {
               <InputValidationPractice
                 onBackToPreview={backToPreview}
                 onStatus={handleAction}
+                onComplete={markLabComplete}
               />
             ) : (
               <>
