@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
+// Where the backend API runs during development.
+const LABS_URL = "http://localhost:4000/api/labs";
+
 // ---------- Mock data (no network requests) ----------
 const roles = [
   {
@@ -47,39 +50,6 @@ const continueItems = [
   },
 ];
 
-const labs = [
-  {
-    id: "input-validation",
-    title: "Input validation",
-    description:
-      "See how unchecked input causes problems, then practice validating and sanitizing it.",
-    difficulty: "Beginner",
-    badgeClass: "badge-beginner",
-    time: "30 min",
-    tags: ["Web", "Forms"],
-  },
-  {
-    id: "access-control",
-    title: "Access control",
-    description:
-      "Explore how roles and permissions protect resources, and what happens when they break.",
-    difficulty: "Intermediate",
-    badgeClass: "badge-intermediate",
-    time: "45 min",
-    tags: ["Permissions", "Roles"],
-  },
-  {
-    id: "secure-configuration",
-    title: "Secure configuration",
-    description:
-      "Find and fix risky default settings in a sample application setup.",
-    difficulty: "Advanced",
-    badgeClass: "badge-advanced",
-    time: "40 min",
-    tags: ["Hardening", "Settings"],
-  },
-];
-
 const upcoming = [
   { id: "up-1", title: "Intro to Web Security", meta: "Mon, 10:00 AM · Room B204" },
   { id: "up-2", title: "Lab session: Access control", meta: "Wed, 2:00 PM · Online" },
@@ -91,6 +61,41 @@ const recent = [
   { id: "rec-3", title: "Earned the 5-day streak badge", meta: "3 days ago" },
 ];
 
+// ---------- Helpers for lab data from the API ----------
+
+// The API sends values like "BEGINNER". These maps turn them into
+// a readable label and the matching CSS class for the badge.
+const difficultyLabels = {
+  BEGINNER: "Beginner",
+  INTERMEDIATE: "Intermediate",
+  ADVANCED: "Advanced",
+};
+
+const difficultyBadgeClasses = {
+  BEGINNER: "badge-beginner",
+  INTERMEDIATE: "badge-intermediate",
+  ADVANCED: "badge-advanced",
+};
+
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// Turns one lab from the API into the shape the cards below use.
+function toLabCard(lab) {
+  const tags = Array.isArray(lab.tags) ? lab.tags : [];
+
+  return {
+    id: lab.id,
+    title: lab.title,
+    description: lab.description,
+    difficulty: difficultyLabels[lab.difficulty] || capitalize(String(lab.difficulty).toLowerCase()),
+    badgeClass: difficultyBadgeClasses[lab.difficulty] || "badge-beginner",
+    time: `${lab.estimatedMinutes} min`,
+    tags: tags.map(capitalize),
+  };
+}
+
 // ---------- Component ----------
 function App() {
   // One small piece of state: the message shown near the top of the page.
@@ -98,12 +103,90 @@ function App() {
     "Pick a role, resume a course, or preview a lab to get started."
   );
 
+  // Labs loaded from the backend.
+  // labsStatus is one of: "loading", "success", or "error".
+  const [labs, setLabs] = useState([]);
+  const [labsStatus, setLabsStatus] = useState("loading");
+  // Changing this number makes the labs load again ("Try again" button).
+  const [labsReloadCount, setLabsReloadCount] = useState(0);
+
+  // The lab currently shown in the preview modal (null = modal is closed).
+  const [selectedLab, setSelectedLab] = useState(null);
+  const isModalOpen = selectedLab !== null;
+
   // A reference to the glowing circle that follows the mouse.
   const cursorGlowRef = useRef(null);
+
+  // References used by the preview modal.
+  const dialogRef = useRef(null); // the modal box
+  const closeButtonRef = useRef(null); // the X button (gets focus when opened)
+  const lastFocusedRef = useRef(null); // the button that opened the modal
+  const backdropPressRef = useRef(false); // did the click start on the backdrop?
 
   function handleAction(message) {
     setStatusMessage(message);
   }
+
+  function openLabPreview(lab, event) {
+    // Remember which button opened the modal so focus can return to it.
+    lastFocusedRef.current = event.currentTarget;
+    setSelectedLab(lab);
+    handleAction(`Previewing the "${lab.title}" lab.`);
+  }
+
+  function closeLabPreview() {
+    setSelectedLab(null);
+  }
+
+  // Only close when the press AND the click both happen on the dark backdrop,
+  // so selecting text inside the modal and releasing outside does not close it.
+  function handleBackdropPointerDown(event) {
+    backdropPressRef.current = event.target === event.currentTarget;
+  }
+
+  function handleBackdropClick(event) {
+    if (backdropPressRef.current && event.target === event.currentTarget) {
+      closeLabPreview();
+    }
+    backdropPressRef.current = false;
+  }
+
+  // Load the labs from the API when the page opens (and on "Try again").
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadLabs() {
+      setLabsStatus("loading");
+
+      try {
+        const response = await fetch(LABS_URL, { signal: controller.signal });
+
+        if (!response.ok) {
+          throw new Error("The server responded with status " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data.labs)) {
+          throw new Error("The server response was not in the expected format");
+        }
+
+        setLabs(data.labs.map(toLabCard));
+        setLabsStatus("success");
+      } catch (error) {
+        // Ignore the cancellation that happens when the page closes.
+        if (error.name === "AbortError") return;
+
+        console.error("Could not load labs:", error);
+        setLabsStatus("error");
+      }
+    }
+
+    loadLabs();
+
+    // Cancel the request if the component is removed.
+    return () => controller.abort();
+  }, [labsReloadCount]);
 
   // Pointer effects: a soft glow follows the mouse, and glass panels
   // get a faint highlight where the mouse is. Nothing here changes layout.
@@ -188,6 +271,65 @@ function App() {
       if (frameId !== null) cancelAnimationFrame(frameId);
     };
   }, []);
+
+  // Modal behavior: runs while the preview modal is open.
+  // - stops the page behind it from scrolling
+  // - moves focus into the modal
+  // - closes on Escape and keeps Tab focus inside the modal
+  // - returns focus to the "Preview lab" button when it closes
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const dialog = dialogRef.current;
+
+    // Lock page scroll (and keep the layout from jumping when the scrollbar hides).
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = scrollbarWidth + "px";
+    }
+
+    // Put keyboard focus inside the modal.
+    if (closeButtonRef.current) closeButtonRef.current.focus();
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelectedLab(null);
+        return;
+      }
+
+      // Keep Tab and Shift+Tab cycling through the modal's own buttons.
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = dialog.querySelectorAll("button:not([disabled])");
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Clean up when the modal closes.
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+      if (lastFocusedRef.current) lastFocusedRef.current.focus();
+    };
+  }, [isModalOpen]);
 
   return (
     <div className="app">
@@ -319,52 +461,87 @@ function App() {
               </ul>
             </section>
 
-            {/* Sample labs */}
-            <section className="section" aria-labelledby="labs-heading">
+            {/* Sample labs (loaded from the backend API) */}
+            <section
+              className="section"
+              aria-labelledby="labs-heading"
+              aria-busy={labsStatus === "loading"}
+            >
               <h2 id="labs-heading" className="section-title">
                 Sample labs
               </h2>
-              <ul className="lab-grid">
-                {labs.map((lab) => (
-                  <li key={lab.id} className="panel lab-card">
-                    <div className="lab-top">
-                      <h3 className="card-title">{lab.title}</h3>
-                      <span className={`badge ${lab.badgeClass}`}>
-                        {lab.difficulty}
-                      </span>
-                    </div>
-                    <p className="card-text">{lab.description}</p>
-                    <ul className="tag-list" aria-label="Topics">
-                      {lab.tags.map((tag) => (
-                        <li key={tag} className="tag">
-                          {tag}
-                        </li>
-                      ))}
-                    </ul>
-                    <dl className="lab-meta">
-                      <div className="meta-item">
-                        <dt>Difficulty</dt>
-                        <dd>{lab.difficulty}</dd>
+
+              {labsStatus === "loading" && (
+                <p className="status" role="status" aria-live="polite">
+                  <span className="status-dot" aria-hidden="true"></span>
+                  Loading labs...
+                </p>
+              )}
+
+              {labsStatus === "error" && (
+                <div className="panel side-panel" role="alert">
+                  <h3 className="card-title">Could not load the labs</h3>
+                  <p className="card-text">
+                    Make sure the backend is running at http://localhost:4000,
+                    then try again.
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => setLabsReloadCount(labsReloadCount + 1)}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {labsStatus === "success" && labs.length === 0 && (
+                <p className="status" role="status">
+                  <span className="status-dot" aria-hidden="true"></span>
+                  No labs are published yet.
+                </p>
+              )}
+
+              {labsStatus === "success" && labs.length > 0 && (
+                <ul className="lab-grid">
+                  {labs.map((lab) => (
+                    <li key={lab.id} className="panel lab-card">
+                      <div className="lab-top">
+                        <h3 className="card-title">{lab.title}</h3>
+                        <span className={`badge ${lab.badgeClass}`}>
+                          {lab.difficulty}
+                        </span>
                       </div>
-                      <div className="meta-item">
-                        <dt>Estimated time</dt>
-                        <dd>{lab.time}</dd>
-                      </div>
-                    </dl>
-                    <button
-                      type="button"
-                      className="button button-secondary"
-                      onClick={() =>
-                        handleAction(
-                          `The "${lab.title}" lab will open here soon. (Mock action)`
-                        )
-                      }
-                    >
-                      Preview lab
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <p className="card-text">{lab.description}</p>
+                      <ul className="tag-list" aria-label="Topics">
+                        {lab.tags.map((tag) => (
+                          <li key={tag} className="tag">
+                            {tag}
+                          </li>
+                        ))}
+                      </ul>
+                      <dl className="lab-meta">
+                        <div className="meta-item">
+                          <dt>Difficulty</dt>
+                          <dd>{lab.difficulty}</dd>
+                        </div>
+                        <div className="meta-item">
+                          <dt>Estimated time</dt>
+                          <dd>{lab.time}</dd>
+                        </div>
+                      </dl>
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        aria-haspopup="dialog"
+                        onClick={(event) => openLabPreview(lab, event)}
+                      >
+                        Preview lab
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </div>
 
@@ -429,6 +606,84 @@ function App() {
           </p>
         </div>
       </footer>
+
+      {/* Lab preview modal */}
+      {selectedLab && (
+        <div
+          className="modal-backdrop"
+          onPointerDown={handleBackdropPointerDown}
+          onClick={handleBackdropClick}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lab-modal-title"
+            aria-describedby="lab-modal-description"
+            ref={dialogRef}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="modal-eyebrow">Lab preview</p>
+                <h2 id="lab-modal-title" className="modal-title">
+                  {selectedLab.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                ref={closeButtonRef}
+                aria-label="Close lab preview"
+                onClick={closeLabPreview}
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+
+            <p id="lab-modal-description" className="modal-description">
+              {selectedLab.description}
+            </p>
+
+            <dl className="lab-meta modal-meta">
+              <div className="meta-item">
+                <dt>Difficulty</dt>
+                <dd>
+                  <span className={`badge ${selectedLab.badgeClass}`}>
+                    {selectedLab.difficulty}
+                  </span>
+                </dd>
+              </div>
+              <div className="meta-item">
+                <dt>Estimated time</dt>
+                <dd>{selectedLab.time}</dd>
+              </div>
+            </dl>
+
+            <ul className="tag-list" aria-label="Topics">
+              {selectedLab.tags.map((tag) => (
+                <li key={tag} className="tag">
+                  {tag}
+                </li>
+              ))}
+            </ul>
+
+            <p className="modal-note">
+              This is a preview. Labs run in isolated, intentionally vulnerable
+              practice environments.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={closeLabPreview}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,30 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model Lab {
+  id               String     @id @default(uuid()) @db.Uuid
+  slug             String     @unique
+  title            String
+  description      String
+  difficulty       Difficulty
+  estimatedMinutes Int
+  tags             String[]
+  published        Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+
+  @@map("labs")
+}
