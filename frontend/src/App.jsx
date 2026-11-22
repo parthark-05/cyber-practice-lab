@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 // ---------- Mock data (no network requests) ----------
@@ -20,7 +20,7 @@ const roles = [
     description:
       "Work through hands-on labs at your own pace and build skills with instant feedback.",
     buttonLabel: "Start practicing",
-    buttonClass: "button-violet",
+    buttonClass: "button-primary",
     message: "Solo practice is coming soon. (Mock action: Practice on your own)",
   },
 ];
@@ -98,15 +98,101 @@ function App() {
     "Pick a role, resume a course, or preview a lab to get started."
   );
 
+  // A reference to the glowing circle that follows the mouse.
+  const cursorGlowRef = useRef(null);
+
   function handleAction(message) {
     setStatusMessage(message);
   }
 
+  // Pointer effects: a soft glow follows the mouse, and glass panels
+  // get a faint highlight where the mouse is. Nothing here changes layout.
+  useEffect(() => {
+    const glow = cursorGlowRef.current;
+    if (!glow) return;
+
+    // Only run on devices with a real mouse, and only if the person has
+    // not asked for reduced motion.
+    const hasMouse = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!hasMouse.matches || reduceMotion.matches) return;
+
+    let targetX = 0; // where the mouse is
+    let targetY = 0;
+    let currentX = 0; // where the glow is drawn (it eases toward the mouse)
+    let currentY = 0;
+    let frameId = null;
+    let hasMoved = false;
+
+    function draw() {
+      // Move 12% of the remaining distance each frame for a smooth trail.
+      currentX += (targetX - currentX) * 0.12;
+      currentY += (targetY - currentY) * 0.12;
+      glow.style.transform =
+        "translate3d(" + currentX + "px, " + currentY + "px, 0) translate(-50%, -50%)";
+
+      const isClose =
+        Math.abs(targetX - currentX) < 0.5 && Math.abs(targetY - currentY) < 0.5;
+      // Keep animating until the glow catches up, then stop to save work.
+      frameId = isClose ? null : requestAnimationFrame(draw);
+    }
+
+    function handlePointerMove(event) {
+      // Ignore touch and pen input. Only a mouse moves the glow.
+      if (event.pointerType !== "mouse") return;
+
+      targetX = event.clientX;
+      targetY = event.clientY;
+
+      if (!hasMoved) {
+        // First movement: place the glow right at the cursor and show it.
+        hasMoved = true;
+        currentX = targetX;
+        currentY = targetY;
+        glow.classList.add("is-active");
+      }
+
+      if (frameId === null) {
+        frameId = requestAnimationFrame(draw);
+      }
+
+      // If the mouse is over a glass panel, tell the panel where it is
+      // (relative to the panel) so CSS can place a faint highlight there.
+      if (event.target instanceof Element) {
+        const panel = event.target.closest(".panel");
+        if (panel) {
+          const box = panel.getBoundingClientRect();
+          panel.style.setProperty("--mx", event.clientX - box.left + "px");
+          panel.style.setProperty("--my", event.clientY - box.top + "px");
+        }
+      }
+    }
+
+    function handlePointerLeave() {
+      glow.classList.remove("is-active");
+    }
+
+    function handlePointerEnter() {
+      if (hasMoved) glow.classList.add("is-active");
+    }
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    document.documentElement.addEventListener("pointerleave", handlePointerLeave);
+    document.documentElement.addEventListener("pointerenter", handlePointerEnter);
+
+    // Clean up when the component is removed.
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      document.documentElement.removeEventListener("pointerleave", handlePointerLeave);
+      document.documentElement.removeEventListener("pointerenter", handlePointerEnter);
+      if (frameId !== null) cancelAnimationFrame(frameId);
+    };
+  }, []);
+
   return (
     <div className="app">
-      {/* Decorative background glows */}
-      <div className="glow glow-cyan" aria-hidden="true"></div>
-      <div className="glow glow-violet" aria-hidden="true"></div>
+      {/* Decorative glow that follows the mouse (hidden from screen readers) */}
+      <div className="cursor-glow" ref={cursorGlowRef} aria-hidden="true"></div>
 
       <header className="site-header">
         <div className="container header-inner">
@@ -130,21 +216,38 @@ function App() {
       </header>
 
       <main className="container main">
-        {/* Welcome area */}
-        <section className="panel hero" aria-labelledby="welcome-heading">
-          <p className="eyebrow">Dashboard</p>
-          <h1 id="welcome-heading" className="hero-title">
-            Welcome back to Cyber Practice Lab
-          </h1>
-          <p className="hero-text">
-            Build real cybersecurity skills through guided, hands-on labs. Pick
-            up where you left off, or choose a new path below.
-          </p>
-          <p className="status" role="status" aria-live="polite">
-            <span className="status-dot" aria-hidden="true"></span>
-            {statusMessage}
-          </p>
-        </section>
+        {/* Welcome area and progress stats, side by side on desktop */}
+        <div className="top-grid">
+          <section className="panel hero" aria-labelledby="welcome-heading">
+            <p className="eyebrow">Dashboard</p>
+            <h1 id="welcome-heading" className="hero-title">
+              Welcome back to Cyber Practice Lab
+            </h1>
+            <p className="hero-text">
+              Build real cybersecurity skills through guided, hands-on labs.
+              Pick up where you left off, or choose a new path below.
+            </p>
+            <p className="status" role="status" aria-live="polite">
+              <span className="status-dot" aria-hidden="true"></span>
+              {statusMessage}
+            </p>
+          </section>
+
+          <section className="progress-section" aria-labelledby="stats-heading">
+            <h2 id="stats-heading" className="section-title">
+              Your progress
+            </h2>
+            <ul className="stat-grid">
+              {stats.map((stat) => (
+                <li key={stat.id} className="panel stat-card">
+                  <span className="stat-label">{stat.label}</span>
+                  <strong className="stat-value">{stat.value}</strong>
+                  <span className="stat-note">{stat.note}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
 
         {/* Role cards */}
         <section className="section" aria-labelledby="roles-heading">
@@ -170,22 +273,6 @@ function App() {
               </article>
             ))}
           </div>
-        </section>
-
-        {/* Stat cards */}
-        <section className="section" aria-labelledby="stats-heading">
-          <h2 id="stats-heading" className="section-title">
-            Your progress
-          </h2>
-          <ul className="stat-grid">
-            {stats.map((stat) => (
-              <li key={stat.id} className="panel stat-card">
-                <span className="stat-label">{stat.label}</span>
-                <strong className="stat-value">{stat.value}</strong>
-                <span className="stat-note">{stat.note}</span>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <div className="layout">
