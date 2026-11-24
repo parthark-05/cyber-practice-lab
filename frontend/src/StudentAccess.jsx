@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import "./StudentAccess.css";
+import { apiUrl } from "./api.js";
 
-const STUDENT_AUTH_URL = "http://localhost:4000/api/student";
+const STUDENT_AUTH_URL = apiUrl("/api/student");
 
 function measurePasswordStrength(password) {
   if (!password) return { score: 0, label: "Not set" };

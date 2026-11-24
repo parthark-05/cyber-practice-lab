@@ -2,11 +2,14 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { randomBytes } from "node:crypto";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma } from "./db.js";
 import { hashSecret, hashSessionToken, verifySecret } from "./auth-crypto.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 4000;
+const frontendDistPath = fileURLToPath(new URL("../../frontend/dist/", import.meta.url));
 const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
 const labSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const demoUsnPattern = /^DEMO-CY-[0-9]{3}$/;
@@ -588,6 +591,16 @@ app.get("/api/classes/:joinCode", async (req, res, next) => {
 });
 
 // Unknown routes
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(frontendDistPath, { index: false }));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api/")) {
+      return res.sendFile(join(frontendDistPath, "index.html"));
+    }
+    next();
+  });
+}
+
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });

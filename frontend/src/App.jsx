@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import AccessPortal from "./AccessPortal.jsx";
 import MatrixElectricField from "./MatrixElectricField.jsx";
+import { apiUrl } from "./api.js";
 
-// Where the backend API runs during development.
-const LABS_URL = "http://localhost:4000/api/labs";
-const PROGRESS_API_URL = "http://localhost:4000/api/progress";
-const CLASSROOMS_API_URL = "http://localhost:4000/api/classes";
-const STUDENT_AUTH_URL = "http://localhost:4000/api/student";
-const FACULTY_AUTH_URL = "http://localhost:4000/api/faculty";
+const LABS_URL = apiUrl("/api/labs");
+const PROGRESS_API_URL = apiUrl("/api/progress");
+const CLASSROOMS_API_URL = apiUrl("/api/classes");
+const STUDENT_AUTH_URL = apiUrl("/api/student");
+const FACULTY_AUTH_URL = apiUrl("/api/faculty");
 
 const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
 
@@ -1754,8 +1754,7 @@ function App() {
                 <div className="panel side-panel" role="alert">
                   <h3 className="card-title">Could not load the labs</h3>
                   <p className="card-text">
-                    Make sure the backend is running at http://localhost:4000,
-                    then try again.
+                    Check that the service is available, then try again.
                   </p>
                   <button
                     type="button"

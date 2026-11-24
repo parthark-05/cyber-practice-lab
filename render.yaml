@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: parthark05-cyber-practice-lab
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --prefix backend && npm run db:generate --prefix backend && npm ci --prefix frontend && npm run build --prefix frontend
+    startCommand: npm run db:deploy --prefix backend && npm start --prefix backend
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24.22.1"
+      - key: DATABASE_URL
+        sync: false

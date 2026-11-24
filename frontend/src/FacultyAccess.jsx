@@ -1,7 +1,8 @@
 import { useState } from "react";
 import "./StudentAccess.css";
+import { apiUrl } from "./api.js";
 
-const FACULTY_AUTH_URL = "http://localhost:4000/api/faculty";
+const FACULTY_AUTH_URL = apiUrl("/api/faculty");
 
 export default function FacultyAccess({ onAuthenticated, onBack }) {
   const [mode, setMode] = useState("login");

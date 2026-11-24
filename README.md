@@ -2,6 +2,10 @@
 
 A safe, guided cybersecurity learning platform for engineering colleges.
 
+## Live website
+
+Not deployed yet. The Render deployment blueprint is in `render.yaml`. Once the first deployment is live, add its public URL here.
+
 ## Problem
 
 Engineering students often learn cybersecurity concepts in theory but have limited access to safe, guided environments where they can practice identifying and fixing vulnerabilities. Faculty need classroom materials, while students need hands-on exercises they can continue during lab hours or independently.
