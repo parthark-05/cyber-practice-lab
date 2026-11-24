@@ -644,6 +644,10 @@ body {
   border-radius: 10px;
 }
 
+.class-preview .timeline-item .button {
+  align-self: flex-start;
+}
+
 .timeline-title {
   font-size: 0.95rem;
   font-weight: 600;

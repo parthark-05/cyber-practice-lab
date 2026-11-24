@@ -175,6 +175,38 @@ app.post("/api/classes", async (req, res, next) => {
   }
 });
 
+// Look up a class by its short code so learners can see the assigned labs.
+// The response contains only the class name and published lab details.
+app.get("/api/classes/:joinCode", async (req, res, next) => {
+  const joinCode = req.params.joinCode.trim().toUpperCase();
+
+  if (!/^[A-F0-9]{8}$/.test(joinCode)) {
+    return res.status(400).json({ error: "Enter a valid 8-character class code." });
+  }
+
+  try {
+    const classroom = await prisma.classroom.findUnique({
+      where: { joinCode },
+      select: {
+        name: true,
+        labs: {
+          where: { published: true },
+          orderBy: { title: "asc" },
+          select: { slug: true, title: true, difficulty: true, estimatedMinutes: true },
+        },
+      },
+    });
+
+    if (!classroom) {
+      return res.status(404).json({ error: "No class was found for that code." });
+    }
+
+    res.json({ classroom });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

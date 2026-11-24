@@ -701,11 +701,16 @@ function App() {
   const [learnerId] = useState(loadOrCreateLearnerId);
   const [progressSyncStatus, setProgressSyncStatus] = useState("syncing");
   const [isClassSetupOpen, setIsClassSetupOpen] = useState(false);
+  const [isJoinClassOpen, setIsJoinClassOpen] = useState(false);
   const [className, setClassName] = useState("");
   const [selectedSetupLabSlugs, setSelectedSetupLabSlugs] = useState([]);
   const [classSetupError, setClassSetupError] = useState("");
   const [createdClassPreview, setCreatedClassPreview] = useState(null);
   const [isCreatingClass, setIsCreatingClass] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [classJoinError, setClassJoinError] = useState("");
+  const [isJoiningClass, setIsJoiningClass] = useState(false);
+  const [joinedClass, setJoinedClass] = useState(null);
 
   useEffect(() => {
     try {
@@ -802,6 +807,7 @@ function App() {
   }
 
   function openClassSetup() {
+    setIsJoinClassOpen(false);
     setIsClassSetupOpen(true);
     setCreatedClassPreview(null);
     setClassSetupError("");
@@ -878,6 +884,42 @@ function App() {
       behavior: "smooth",
       block: "start",
     });
+  }
+
+  async function handleJoinClass(event) {
+    event.preventDefault();
+    const joinCode = joinCodeInput.replace(/\s/g, "").toUpperCase();
+
+    if (!/^[A-F0-9]{8}$/.test(joinCode)) {
+      setClassJoinError("Enter the 8-character code provided by your teacher.");
+      return;
+    }
+
+    setClassJoinError("");
+    setIsJoiningClass(true);
+    try {
+      const response = await fetch(
+        `${CLASSROOMS_API_URL}/${encodeURIComponent(joinCode)}`
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not find that class.");
+
+      setJoinedClass(data.classroom);
+      handleAction(`Joined the "${data.classroom.name}" class preview.`);
+    } catch (error) {
+      setClassJoinError(
+        error instanceof TypeError
+          ? "Could not reach the backend. Make sure the backend server is running."
+          : error.message
+      );
+    } finally {
+      setIsJoiningClass(false);
+    }
+  }
+
+  function openAssignedLab(slug, event) {
+    const lab = labs.find((item) => item.slug === slug);
+    if (lab) openLabPreview(lab, event);
   }
 
   function openLabPreview(lab, event) {
@@ -1202,9 +1244,102 @@ function App() {
                 >
                   {role.buttonLabel}
                 </button>
+                {role.id === "practice" && (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => {
+                      setIsClassSetupOpen(false);
+                      setIsJoinClassOpen(true);
+                      setClassJoinError("");
+                      setJoinedClass(null);
+                    }}
+                  >
+                    Join a class
+                  </button>
+                )}
               </article>
             ))}
           </div>
+
+          {isJoinClassOpen && (
+            <section className="panel class-setup-panel" aria-labelledby="join-class-heading">
+              <div className="class-setup-header">
+                <div>
+                  <p className="modal-eyebrow">Learner workspace</p>
+                  <h3 id="join-class-heading" className="role-title">Join a class</h3>
+                </div>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={() => setIsJoinClassOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {joinedClass ? (
+                <div className="class-preview" role="status">
+                  <h4 className="card-title">You’re in {joinedClass.name}</h4>
+                  <p className="practice-text">Labs assigned by your teacher:</p>
+                  <ul className="timeline">
+                    {joinedClass.labs.map((lab) => (
+                      <li key={lab.slug} className="timeline-item">
+                        <span className="timeline-title">{lab.title}</span>
+                        <span className="timeline-meta">
+                          {capitalize(lab.difficulty.toLowerCase())} · {lab.estimatedMinutes} min
+                        </span>
+                        <button
+                          type="button"
+                          className="button button-secondary"
+                          onClick={(event) => openAssignedLab(lab.slug, event)}
+                        >
+                          Open lab
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {joinedClass.labs.length === 0 && (
+                    <p className="field-hint">This class has no published labs available right now.</p>
+                  )}
+                  <p className="class-setup-note">
+                    This demo does not create student accounts or record who joined.
+                  </p>
+                </div>
+              ) : (
+                <form className="practice-form" onSubmit={handleJoinClass}>
+                  <div className="practice-field">
+                    <label className="field-label" htmlFor="class-join-code">Class code</label>
+                    <p className="field-hint" id="class-join-code-hint">
+                      Ask your teacher for the 8-character code.
+                    </p>
+                    <input
+                      id="class-join-code"
+                      className="field-input"
+                      type="text"
+                      value={joinCodeInput}
+                      onChange={(event) => setJoinCodeInput(event.target.value.toUpperCase())}
+                      maxLength={12}
+                      autoComplete="off"
+                      aria-describedby="class-join-code-hint"
+                      required
+                    />
+                  </div>
+                  {classJoinError && (
+                    <p className="quiz-feedback is-invalid" role="alert">{classJoinError}</p>
+                  )}
+                  <p className="class-setup-note">
+                    The code only shows the class name and its published labs. Do not use it as a password.
+                  </p>
+                  <div className="practice-actions">
+                    <button type="submit" className="button button-primary" disabled={isJoiningClass}>
+                      {isJoiningClass ? "Looking up class…" : "View assigned labs"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+          )}
 
           {isClassSetupOpen && (
             <section
