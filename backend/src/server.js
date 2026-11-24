@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { randomBytes } from "node:crypto";
 import { prisma } from "./db.js";
 
 const app = express();
@@ -117,6 +118,58 @@ app.post("/api/progress", async (req, res, next) => {
         completedAt: progress.completedAt,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create a demo classroom without collecting teacher or student personal data.
+// A join code identifies a class; it is not an authentication credential.
+app.post("/api/classes", async (req, res, next) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const labSlugs = req.body?.labSlugs;
+
+  if (name.length < 2 || name.length > 80) {
+    return res.status(400).json({ error: "Class name must be 2 to 80 characters." });
+  }
+
+  if (
+    !Array.isArray(labSlugs) ||
+    labSlugs.length < 1 ||
+    labSlugs.length > 20 ||
+    labSlugs.some((slug) => typeof slug !== "string" || !labSlugPattern.test(slug))
+  ) {
+    return res.status(400).json({ error: "Choose between 1 and 20 valid labs." });
+  }
+
+  try {
+    const uniqueSlugs = [...new Set(labSlugs)];
+    const labs = await prisma.lab.findMany({
+      where: { slug: { in: uniqueSlugs }, published: true },
+      select: { id: true, slug: true, title: true },
+    });
+
+    if (labs.length !== uniqueSlugs.length) {
+      return res.status(400).json({ error: "One or more selected labs are unavailable." });
+    }
+
+    const classroom = await prisma.classroom.create({
+      data: {
+        name,
+        // Four random bytes provide a hard-to-guess demo code.
+        joinCode: randomBytes(4).toString("hex").toUpperCase(),
+        labs: { connect: labs.map(({ id }) => ({ id })) },
+      },
+      select: {
+        id: true,
+        name: true,
+        joinCode: true,
+        createdAt: true,
+        labs: { select: { slug: true, title: true } },
+      },
+    });
+
+    res.status(201).json({ classroom });
   } catch (error) {
     next(error);
   }

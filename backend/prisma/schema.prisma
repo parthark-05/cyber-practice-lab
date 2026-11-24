@@ -26,6 +26,7 @@ model Lab {
   published        Boolean    @default(false)
   createdAt        DateTime   @default(now())
   learnerProgress LearnerProgress[]
+  classrooms       Classroom[]
 
   @@map("labs")
 }
@@ -39,4 +40,14 @@ model LearnerProgress {
   @@id([learnerId, labId])
   @@index([learnerId, completedAt])
   @@map("learner_progress")
+}
+
+model Classroom {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(80)
+  joinCode  String   @unique @db.VarChar(12)
+  createdAt DateTime @default(now())
+  labs      Lab[]
+
+  @@map("classrooms")
 }

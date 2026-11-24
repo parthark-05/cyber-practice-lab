@@ -4,6 +4,7 @@ import "./App.css";
 // Where the backend API runs during development.
 const LABS_URL = "http://localhost:4000/api/labs";
 const PROGRESS_API_URL = "http://localhost:4000/api/progress";
+const CLASSROOMS_API_URL = "http://localhost:4000/api/classes";
 
 const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
 const LEARNER_ID_STORAGE_KEY = "cyber-practice-lab.learner-id.v1";
@@ -704,6 +705,7 @@ function App() {
   const [selectedSetupLabSlugs, setSelectedSetupLabSlugs] = useState([]);
   const [classSetupError, setClassSetupError] = useState("");
   const [createdClassPreview, setCreatedClassPreview] = useState(null);
+  const [isCreatingClass, setIsCreatingClass] = useState(false);
 
   useEffect(() => {
     try {
@@ -819,7 +821,7 @@ function App() {
     );
   }
 
-  function handleCreateClass(event) {
+  async function handleCreateClass(event) {
     event.preventDefault();
     const trimmedName = className.trim();
 
@@ -833,19 +835,41 @@ function App() {
       return;
     }
 
-    const joinCode = `DEMO-${window.crypto
-      .randomUUID()
-      .replaceAll("-", "")
-      .slice(0, 6)
-      .toUpperCase()}`;
-
-    setCreatedClassPreview({
-      name: trimmedName,
-      joinCode,
-      labSlugs: selectedSetupLabSlugs,
-    });
     setClassSetupError("");
-    handleAction(`Demo setup ready for "${trimmedName}".`);
+    setIsCreatingClass(true);
+
+    try {
+      const response = await fetch(CLASSROOMS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          labSlugs: selectedSetupLabSlugs,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not save this class.");
+      }
+
+      const classroom = data.classroom;
+      setCreatedClassPreview({
+        id: classroom.id,
+        name: classroom.name,
+        joinCode: classroom.joinCode,
+        labSlugs: classroom.labs.map((lab) => lab.slug),
+      });
+      handleAction(`Class "${classroom.name}" saved to the database.`);
+    } catch (error) {
+      setClassSetupError(
+        error instanceof TypeError
+          ? "Could not reach the backend. Make sure the backend server is running."
+          : error.message
+      );
+    } finally {
+      setIsCreatingClass(false);
+    }
   }
 
   function startPracticing() {
@@ -1205,18 +1229,18 @@ function App() {
 
               {createdClassPreview ? (
                 <div className="class-preview" role="status">
-                  <h4 className="card-title">Class preview created</h4>
+                  <h4 className="card-title">Class saved</h4>
                   <p className="practice-text">
                     <strong>{createdClassPreview.name}</strong> includes{" "}
                     {createdClassPreview.labSlugs.length} lab
                     {createdClassPreview.labSlugs.length === 1 ? "" : "s"}.
                   </p>
                   <p className="class-join-code">
-                    Demo join code: <code>{createdClassPreview.joinCode}</code>
+                    Class join code: <code>{createdClassPreview.joinCode}</code>
                   </p>
                   <p className="class-setup-note">
-                    This is a frontend preview. The class and code are not saved
-                    for students yet.
+                    Saved in the database. This prototype does not yet have
+                    teacher accounts or student join access.
                   </p>
                   <div className="practice-actions">
                     <button
@@ -1299,8 +1323,8 @@ function App() {
                   )}
 
                   <p className="class-setup-note">
-                    You can preview the class setup here. Saving it for students
-                    will be connected to the backend later.
+                    This demo stores the class name and selected labs. Do not
+                    enter teacher or student personal information.
                   </p>
 
                   <div className="practice-actions">
@@ -1314,9 +1338,13 @@ function App() {
                     <button
                       type="submit"
                       className="button button-primary"
-                      disabled={labsStatus !== "success" || labs.length === 0}
+                      disabled={
+                        labsStatus !== "success" ||
+                        labs.length === 0 ||
+                        isCreatingClass
+                      }
                     >
-                      Create class preview
+                      {isCreatingClass ? "Saving class…" : "Save class"}
                     </button>
                   </div>
                 </form>
