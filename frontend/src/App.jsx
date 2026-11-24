@@ -3,8 +3,23 @@ import "./App.css";
 
 // Where the backend API runs during development.
 const LABS_URL = "http://localhost:4000/api/labs";
+const PROGRESS_API_URL = "http://localhost:4000/api/progress";
 
 const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
+const LEARNER_ID_STORAGE_KEY = "cyber-practice-lab.learner-id.v1";
+
+function loadOrCreateLearnerId() {
+  try {
+    const saved = window.localStorage.getItem(LEARNER_ID_STORAGE_KEY);
+    if (saved) return saved;
+
+    const learnerId = window.crypto.randomUUID();
+    window.localStorage.setItem(LEARNER_ID_STORAGE_KEY, learnerId);
+    return learnerId;
+  } catch {
+    return window.crypto.randomUUID();
+  }
+}
 
 function loadCompletedLabSlugs() {
   try {
@@ -18,6 +33,21 @@ function loadCompletedLabSlugs() {
   } catch {
     return [];
   }
+}
+
+async function saveLabProgress(learnerId, labSlug, signal) {
+  const response = await fetch(PROGRESS_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ learnerId, labSlug }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Progress save failed with status ${response.status}`);
+  }
+
+  return response.json();
 }
 
 // ---------- Mock data (no network requests) ----------
@@ -669,6 +699,8 @@ function App() {
   const [completedLabSlugs, setCompletedLabSlugs] = useState(
     loadCompletedLabSlugs
   );
+  const [learnerId] = useState(loadOrCreateLearnerId);
+  const [progressSyncStatus, setProgressSyncStatus] = useState("syncing");
 
   useEffect(() => {
     try {
@@ -680,6 +712,55 @@ function App() {
       // Progress still works for this visit if browser storage is unavailable.
     }
   }, [completedLabSlugs]);
+
+  // Sync saved progress with the API. The browser copy is a fallback and also
+  // lets older local completions be uploaded the first time this is connected.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function syncProgress() {
+      setProgressSyncStatus("syncing");
+
+      try {
+        const response = await fetch(
+          `${PROGRESS_API_URL}/${encodeURIComponent(learnerId)}`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Progress load failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const serverSlugs = Array.isArray(data.completedLabs)
+          ? data.completedLabs
+              .map((lab) => lab.slug)
+              .filter((slug) => typeof slug === "string")
+          : [];
+        const localSlugs = loadCompletedLabSlugs();
+        const mergedSlugs = [...new Set([...serverSlugs, ...localSlugs])];
+
+        setCompletedLabSlugs(mergedSlugs);
+
+        const slugsToUpload = localSlugs.filter(
+          (slug) => !serverSlugs.includes(slug)
+        );
+        await Promise.all(
+          slugsToUpload.map((slug) =>
+            saveLabProgress(learnerId, slug, controller.signal)
+          )
+        );
+
+        setProgressSyncStatus("synced");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        setProgressSyncStatus("local");
+      }
+    }
+
+    syncProgress();
+    return () => controller.abort();
+  }, [learnerId]);
 
   // The lab currently shown in the preview modal (null = modal is closed).
   const [selectedLab, setSelectedLab] = useState(null);
@@ -708,6 +789,11 @@ function App() {
     setCompletedLabSlugs((current) =>
       current.includes(slug) ? current : [...current, slug]
     );
+
+    setProgressSyncStatus("syncing");
+    saveLabProgress(learnerId, slug)
+      .then(() => setProgressSyncStatus("synced"))
+      .catch(() => setProgressSyncStatus("local"));
   }
 
   function openLabPreview(lab, event) {
@@ -994,7 +1080,15 @@ function App() {
                     ? completedLabSlugs.length
                     : stat.value}
                 </strong>
-                  <span className="stat-note">{stat.note}</span>
+                  <span className="stat-note">
+                    {stat.id === "completed"
+                      ? progressSyncStatus === "synced"
+                        ? "Synced to database"
+                        : progressSyncStatus === "syncing"
+                          ? "Syncing progress…"
+                          : "Saved on this device"
+                      : stat.note}
+                  </span>
                 </li>
               ))}
             </ul>
