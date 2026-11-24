@@ -25,6 +25,18 @@ model Lab {
   tags             String[]
   published        Boolean    @default(false)
   createdAt        DateTime   @default(now())
+  learnerProgress LearnerProgress[]
 
   @@map("labs")
+}
+
+model LearnerProgress {
+  learnerId   String   @db.Uuid
+  labId       String   @db.Uuid
+  completedAt DateTime @default(now())
+  lab         Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@id([learnerId, labId])
+  @@index([learnerId, completedAt])
+  @@map("learner_progress")
 }
