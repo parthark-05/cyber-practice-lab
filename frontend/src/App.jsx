@@ -9,6 +9,7 @@ const PROGRESS_API_URL = apiUrl("/api/progress");
 const CLASSROOMS_API_URL = apiUrl("/api/classes");
 const STUDENT_AUTH_URL = apiUrl("/api/student");
 const FACULTY_AUTH_URL = apiUrl("/api/faculty");
+const ADMIN_AUTH_URL = apiUrl("/api/admin");
 
 const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
 
@@ -686,6 +687,7 @@ function App() {
   const [studentAuthStatus, setStudentAuthStatus] = useState("checking");
   const [currentStudent, setCurrentStudent] = useState(null);
   const [currentFaculty, setCurrentFaculty] = useState(null);
+  const [currentAdmin, setCurrentAdmin] = useState(null);
   const [accessMode, setAccessMode] = useState("student");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState([]);
@@ -713,19 +715,34 @@ function App() {
           credentials: "include",
           signal: controller.signal,
         });
-        if (!facultyResponse.ok) throw new Error("No active session.");
-        const data = await facultyResponse.json();
-        setCurrentFaculty(data.faculty);
+        if (facultyResponse.ok) {
+          const data = await facultyResponse.json();
+          setCurrentFaculty(data.faculty);
+          setCompletedLabSlugs([]);
+          setProgressSyncStatus("local");
+          setReadNotificationIds(loadReadNotificationIds(data.faculty.facultyId));
+          setAccessMode("faculty");
+          setStudentAuthStatus("signed-in");
+          return;
+        }
+        const adminResponse = await fetch(`${ADMIN_AUTH_URL}/me`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!adminResponse.ok) throw new Error("No active session.");
+        const data = await adminResponse.json();
+        setCurrentAdmin(data.admin);
         setCompletedLabSlugs([]);
         setProgressSyncStatus("local");
-        setReadNotificationIds(loadReadNotificationIds(data.faculty.facultyId));
-        setAccessMode("faculty");
+        setReadNotificationIds([]);
+        setAccessMode("admin");
         setStudentAuthStatus("signed-in");
       })
       .catch((error) => {
         if (error.name === "AbortError") return;
         setCurrentStudent(null);
         setCurrentFaculty(null);
+        setCurrentAdmin(null);
         setCompletedLabSlugs([]);
         setProgressSyncStatus("local");
         setReadNotificationIds([]);
@@ -847,7 +864,9 @@ function App() {
 
   async function signOutStudent() {
     try {
-      const authUrl = accessMode === "faculty" ? FACULTY_AUTH_URL : STUDENT_AUTH_URL;
+      const authUrl = accessMode === "admin"
+        ? ADMIN_AUTH_URL
+        : accessMode === "faculty" ? FACULTY_AUTH_URL : STUDENT_AUTH_URL;
       await fetch(`${authUrl}/logout`, {
         method: "POST",
         credentials: "include",
@@ -857,6 +876,7 @@ function App() {
     } finally {
       setCurrentStudent(null);
       setCurrentFaculty(null);
+      setCurrentAdmin(null);
       setCompletedLabSlugs([]);
       setProgressSyncStatus("local");
       setReadNotificationIds([]);
@@ -1283,6 +1303,7 @@ function App() {
       <AccessPortal
         onStudentAuthenticated={(student) => {
           setCurrentFaculty(null);
+          setCurrentAdmin(null);
           setCurrentStudent(student);
           setCompletedLabSlugs(loadCompletedLabSlugs(student.usn));
           setProgressSyncStatus("syncing");
@@ -1292,11 +1313,22 @@ function App() {
         }}
         onFacultyAuthenticated={(faculty) => {
           setCurrentStudent(null);
+          setCurrentAdmin(null);
           setCurrentFaculty(faculty);
           setCompletedLabSlugs([]);
           setProgressSyncStatus("local");
           setReadNotificationIds(loadReadNotificationIds(faculty.facultyId));
           setAccessMode("faculty");
+          setStudentAuthStatus("signed-in");
+        }}
+        onAdminAuthenticated={(admin) => {
+          setCurrentStudent(null);
+          setCurrentFaculty(null);
+          setCurrentAdmin(admin);
+          setCompletedLabSlugs([]);
+          setProgressSyncStatus("local");
+          setReadNotificationIds([]);
+          setAccessMode("admin");
           setStudentAuthStatus("signed-in");
         }}
       />
@@ -1317,7 +1349,7 @@ function App() {
           </div>
           <div className="header-actions">
             <span className="pill">
-              {accessMode === "faculty" ? currentFaculty?.facultyId : currentStudent?.usn}
+              {accessMode === "admin" ? currentAdmin?.label : accessMode === "faculty" ? currentFaculty?.facultyId : currentStudent?.usn}
             </span>
             <button
               type="button"

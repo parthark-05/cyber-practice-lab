@@ -15,8 +15,13 @@ const labSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const demoUsnPattern = /^DEMO-CY-[0-9]{3}$/;
 const studentCookieName = "cpl_student_session";
 const facultyCookieName = "cpl_faculty_session";
+const adminCookieName = "cpl_admin_session";
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 const authFailures = new Map();
+const adminSessions = new Map();
+const adminKeyHashPromise = process.env.ADMIN_ACCESS_KEY
+  ? hashSecret(process.env.ADMIN_ACCESS_KEY)
+  : null;
 const dummyPasswordHashPromise = hashSecret(randomBytes(16).toString("hex"));
 
 function measurePasswordStrength(password) {
@@ -401,6 +406,57 @@ app.post("/api/faculty/logout", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// Developer access is configured only on the server. Sessions are kept in
+// memory, so a server restart safely signs the developer out.
+app.post("/api/admin/login", async (req, res, next) => {
+  const key = typeof req.body?.key === "string" ? req.body.key : "";
+  const attemptKey = authAttemptKey(req, "admin");
+  if (isAuthRateLimited(attemptKey, 5, 5)) {
+    return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
+  }
+  if (!adminKeyHashPromise) {
+    return res.status(503).json({ error: "Developer access has not been configured." });
+  }
+  try {
+    if (key.length > 64 || !(await verifySecret(key, await adminKeyHashPromise))) {
+      recordAuthFailure(attemptKey);
+      return res.status(401).json({ error: "That access code is incorrect." });
+    }
+    authFailures.delete(attemptKey);
+    authFailures.delete(authAttemptKey(req, "*"));
+    if (adminSessions.size > 100) {
+      for (const [sessionHash, expiry] of adminSessions) {
+        if (expiry <= Date.now()) adminSessions.delete(sessionHash);
+      }
+    }
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + sessionLifetimeMs;
+    adminSessions.set(hashSessionToken(token), expiresAt);
+    setSessionCookie(res, token, adminCookieName);
+    res.json({ admin: { label: "Developer" } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/admin/me", (req, res) => {
+  const token = getSessionToken(req, adminCookieName);
+  const tokenHash = /^[a-f0-9]{64}$/i.test(token) ? hashSessionToken(token) : "";
+  const expiresAt = adminSessions.get(tokenHash);
+  if (!expiresAt || expiresAt <= Date.now()) {
+    if (tokenHash) adminSessions.delete(tokenHash);
+    return res.status(401).json({ error: "Not signed in." });
+  }
+  res.json({ admin: { label: "Developer" } });
+});
+
+app.post("/api/admin/logout", (req, res) => {
+  const token = getSessionToken(req, adminCookieName);
+  if (/^[a-f0-9]{64}$/i.test(token)) adminSessions.delete(hashSessionToken(token));
+  clearSessionCookie(res, adminCookieName);
+  res.status(204).end();
 });
 
 // Returns all published labs from PostgreSQL.

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import StudentAccess from "./StudentAccess.jsx";
 import FacultyAccess from "./FacultyAccess.jsx";
+import AdminAccess from "./AdminAccess.jsx";
 import MatrixElectricField from "./MatrixElectricField.jsx";
 import "./AccessPortal.css";
 
-export default function AccessPortal({ onStudentAuthenticated, onFacultyAuthenticated }) {
+export default function AccessPortal({ onStudentAuthenticated, onFacultyAuthenticated, onAdminAuthenticated }) {
   const [stage, setStage] = useState("welcome");
   const [selectedRole, setSelectedRole] = useState(null);
   const transitionTimer = useRef(null);
@@ -39,15 +40,17 @@ export default function AccessPortal({ onStudentAuthenticated, onFacultyAuthenti
   const isRoles = stage === "roles" || stage === "roles-exit";
   const isExiting = stage.endsWith("-exit");
 
-  if (stage === "student-login" || stage === "faculty-login") {
+  if (["student-login", "faculty-login", "admin-login"].includes(stage)) {
     return (
       <div className="access-portal-root">
         <MatrixElectricField />
         <div className="portal-login-screen">
           {stage === "student-login" ? (
             <StudentAccess onAuthenticated={onStudentAuthenticated} onBack={backToRoles} />
-          ) : (
+          ) : stage === "faculty-login" ? (
             <FacultyAccess onAuthenticated={onFacultyAuthenticated} onBack={backToRoles} />
+          ) : (
+            <AdminAccess onAuthenticated={onAdminAuthenticated} onBack={backToRoles} />
           )}
         </div>
       </div>
@@ -124,6 +127,14 @@ export default function AccessPortal({ onStudentAuthenticated, onFacultyAuthenti
                 </button>
               </article>
             </div>
+            <button
+              type="button"
+              className="portal-back-button"
+              onClick={() => transition("roles-exit", "admin")}
+              disabled={isExiting}
+            >
+              Developer? Admin sign in
+            </button>
             <button type="button" className="portal-back-button" onClick={backToWelcome} aria-label="Back to welcome screen">
               <span aria-hidden="true">←</span> Welcome
             </button>

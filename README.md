@@ -30,3 +30,7 @@ Build a responsive frontend dashboard with two paths: **Teach a class** and **Pr
 - Exercises run only in an intentionally vulnerable, isolated practice environment.
 - Explain the vulnerability and secure fix, not just whether an answer is right.
 - Keep classroom setup lightweight for faculty.
+
+## Developer access
+
+The developer sign-in uses the backend-only `ADMIN_ACCESS_KEY` setting. Put it in `backend/.env` for local use or in the backend service's private environment settings before resuming the hosted service. Do not put the key in frontend variables or commit it. The current four-digit code is intended only for this fictional demo; replace it with a longer code before using any real student accounts or data. Failed attempts are rate-limited, and the admin session is cleared when the backend restarts.
