@@ -1,0 +1,288 @@
+.student-access-shell {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  color: var(--text, #edf1f7);
+  background: transparent;
+}
+
+.student-access-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 470px);
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(42, 49, 59, 0.94), rgba(25, 30, 37, 0.96));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+}
+
+.student-access-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 2.5rem;
+  font-weight: 700;
+}
+
+.student-access-mark {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 0.35rem;
+  background: var(--lime, #b5ff2e);
+  box-shadow: 0 0 20px rgba(181, 255, 46, 0.5);
+}
+
+.student-access-eyebrow {
+  margin: 0 0 0.4rem;
+  color: var(--lime, #b5ff2e);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.student-access-card h1 {
+  margin: 0;
+  color: #f4f6fa;
+  font-size: clamp(1.8rem, 5vw, 2.2rem);
+  letter-spacing: -0.04em;
+}
+
+.student-access-intro {
+  margin: 0.7rem 0 1.5rem;
+  color: #a7b0be;
+  line-height: 1.6;
+}
+
+.student-access-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.student-access-form label {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.student-access-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: #d6ffac;
+  caret-color: #c4ff70;
+  background: rgba(10, 12, 15, 0.72);
+  outline: none;
+}
+
+.student-access-form input:-webkit-autofill,
+.student-access-form input:-webkit-autofill:hover,
+.student-access-form input:-webkit-autofill:focus,
+.student-access-form input:autofill {
+  -webkit-text-fill-color: #d6ffac !important;
+  caret-color: #c4ff70;
+  -webkit-box-shadow: 0 0 0 1000px #151a20 inset !important;
+  box-shadow: 0 0 0 1000px #151a20 inset !important;
+  transition: background-color 9999s ease-out;
+}
+
+.student-access-form input:focus-visible {
+  border-color: var(--lime, #b5ff2e);
+  box-shadow: 0 0 0 3px rgba(181, 255, 46, 0.16);
+}
+
+.student-access-form input::placeholder {
+  color: #788391;
+}
+
+.student-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.student-password-wrap input {
+  padding-right: 4.7rem;
+}
+
+.student-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  min-width: 3.6rem;
+  min-height: 36px;
+  padding: 0.35rem 0.55rem;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: #c5ccd5;
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+.student-password-toggle:hover {
+  color: var(--lime, #b5ff2e);
+  background: rgba(181, 255, 46, 0.1);
+  border-color: rgba(181, 255, 46, 0.3);
+}
+
+.student-password-toggle:focus-visible {
+  outline: 2px solid var(--lime, #b5ff2e);
+  outline-offset: 2px;
+}
+
+.student-access-hint {
+  margin: 0;
+  color: #a7b0be;
+  font-size: 0.82rem;
+}
+
+.password-strength {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.1rem;
+}
+
+.password-strength-bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.password-strength-bars span {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background-color 220ms ease, box-shadow 220ms ease;
+}
+
+.strength-1 .password-strength-bars span.is-filled {
+  background: #f07878;
+  box-shadow: 0 0 10px rgba(240, 120, 120, 0.24);
+}
+
+.strength-2 .password-strength-bars span.is-filled {
+  background: #f0c45c;
+  box-shadow: 0 0 10px rgba(240, 196, 92, 0.2);
+}
+
+.strength-3 .password-strength-bars span.is-filled {
+  background: var(--lime, #b5ff2e);
+  box-shadow: 0 0 10px rgba(181, 255, 46, 0.24);
+}
+
+.password-strength-caption {
+  display: flex;
+  justify-content: space-between;
+  color: #a7b0be;
+  font-size: 0.8rem;
+}
+
+.password-match {
+  margin: -0.25rem 0 0;
+  font-size: 0.82rem;
+  animation: password-match-in 180ms ease both;
+}
+
+.password-match.is-confirmed {
+  color: var(--lime, #b5ff2e);
+}
+
+.password-match.is-mismatch {
+  color: #f0c45c;
+}
+
+@keyframes password-match-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.strength-1 .password-strength-caption strong {
+  color: #ffaaaa;
+}
+
+.strength-2 .password-strength-caption strong {
+  color: #f0c45c;
+}
+
+.strength-3 .password-strength-caption strong {
+  color: var(--lime, #b5ff2e);
+}
+
+.student-access-message {
+  margin: 0.4rem 0 0;
+  color: #ffb3b3;
+  font-size: 0.9rem;
+}
+
+.student-access-submit {
+  min-height: 48px;
+  margin-top: 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  color: #10150a;
+  background: var(--lime, #b5ff2e);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.student-access-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 26px rgba(181, 255, 46, 0.24);
+}
+
+.student-access-submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.student-access-switch {
+  align-self: center;
+  margin: 1.1rem 0 1.6rem;
+  padding: 0.3rem;
+  border: 0;
+  color: var(--lime, #b5ff2e);
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.student-access-switch:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-access-submit {
+    transition: none;
+  }
+
+  .password-strength-bars span {
+    transition: none;
+  }
+
+  .student-password-toggle {
+    transition: none;
+  }
+
+  .password-match {
+    animation: none;
+  }
+}

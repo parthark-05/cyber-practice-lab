@@ -1,31 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import AccessPortal from "./AccessPortal.jsx";
+import MatrixElectricField from "./MatrixElectricField.jsx";
 
 // Where the backend API runs during development.
 const LABS_URL = "http://localhost:4000/api/labs";
 const PROGRESS_API_URL = "http://localhost:4000/api/progress";
 const CLASSROOMS_API_URL = "http://localhost:4000/api/classes";
+const STUDENT_AUTH_URL = "http://localhost:4000/api/student";
+const FACULTY_AUTH_URL = "http://localhost:4000/api/faculty";
 
 const PROGRESS_STORAGE_KEY = "cyber-practice-lab.completed-labs.v1";
-const LEARNER_ID_STORAGE_KEY = "cyber-practice-lab.learner-id.v1";
 
-function loadOrCreateLearnerId() {
-  try {
-    const saved = window.localStorage.getItem(LEARNER_ID_STORAGE_KEY);
-    if (saved) return saved;
-
-    const learnerId = window.crypto.randomUUID();
-    window.localStorage.setItem(LEARNER_ID_STORAGE_KEY, learnerId);
-    return learnerId;
-  } catch {
-    return window.crypto.randomUUID();
-  }
+function progressStorageKey(usn) {
+  return `${PROGRESS_STORAGE_KEY}.${usn}`;
 }
 
-function loadCompletedLabSlugs() {
+function loadCompletedLabSlugs(usn) {
+  if (!usn) return [];
   try {
     const saved = JSON.parse(
-      window.localStorage.getItem(PROGRESS_STORAGE_KEY) || "[]"
+      window.localStorage.getItem(progressStorageKey(usn)) || "[]"
     );
 
     return Array.isArray(saved)
@@ -36,11 +31,22 @@ function loadCompletedLabSlugs() {
   }
 }
 
-async function saveLabProgress(learnerId, labSlug, signal) {
+function loadReadNotificationIds(owner) {
+  if (!owner) return [];
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(`cpl.notifications.read.${owner}`) || "[]");
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveLabProgress(labSlug, signal) {
   const response = await fetch(PROGRESS_API_URL, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ learnerId, labSlug }),
+    body: JSON.stringify({ labSlug }),
     signal,
   });
 
@@ -53,15 +59,6 @@ async function saveLabProgress(learnerId, labSlug, signal) {
 
 // ---------- Mock data (no network requests) ----------
 const roles = [
-  {
-    id: "teach",
-    tag: "For instructors",
-    title: "Teach a class",
-    description:
-      "Create a lab session, choose exercises, and track how your students are progressing.",
-    buttonLabel: "Set up a class",
-    buttonClass: "button-primary",
-  },
   {
     id: "practice",
     tag: "For learners",
@@ -84,12 +81,14 @@ const continueItems = [
   {
     id: "web-basics",
     title: "Web Security Basics",
+    labSlug: "input-validation",
     module: "Module 3 of 5: Sessions and cookies",
     progress: 60,
   },
   {
     id: "secure-coding",
     title: "Secure Coding Habits",
+    labSlug: "secure-configuration",
     module: "Module 1 of 4: Error handling",
     progress: 25,
   },
@@ -684,6 +683,57 @@ function InputValidationPractice({ onBackToPreview, onStatus, onComplete }) {
 
 // ---------- Component ----------
 function App() {
+  const [studentAuthStatus, setStudentAuthStatus] = useState("checking");
+  const [currentStudent, setCurrentStudent] = useState(null);
+  const [currentFaculty, setCurrentFaculty] = useState(null);
+  const [accessMode, setAccessMode] = useState("student");
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [readNotificationIds, setReadNotificationIds] = useState([]);
+  const [completedLabSlugs, setCompletedLabSlugs] = useState([]);
+  const [progressSyncStatus, setProgressSyncStatus] = useState("syncing");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${STUDENT_AUTH_URL}/me`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentStudent(data.student);
+          setCompletedLabSlugs(loadCompletedLabSlugs(data.student.usn));
+          setProgressSyncStatus("syncing");
+          setReadNotificationIds(loadReadNotificationIds(data.student.usn));
+          setAccessMode("student");
+          setStudentAuthStatus("signed-in");
+          return;
+        }
+        const facultyResponse = await fetch(`${FACULTY_AUTH_URL}/me`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!facultyResponse.ok) throw new Error("No active session.");
+        const data = await facultyResponse.json();
+        setCurrentFaculty(data.faculty);
+        setCompletedLabSlugs([]);
+        setProgressSyncStatus("local");
+        setReadNotificationIds(loadReadNotificationIds(data.faculty.facultyId));
+        setAccessMode("faculty");
+        setStudentAuthStatus("signed-in");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setCurrentStudent(null);
+        setCurrentFaculty(null);
+        setCompletedLabSlugs([]);
+        setProgressSyncStatus("local");
+        setReadNotificationIds([]);
+        setStudentAuthStatus("signed-out");
+      });
+    return () => controller.abort();
+  }, []);
+
   // One small piece of state: the message shown near the top of the page.
   const [statusMessage, setStatusMessage] = useState(
     "Pick a role, resume a course, or preview a lab to get started."
@@ -695,11 +745,6 @@ function App() {
   const [labsStatus, setLabsStatus] = useState("loading");
   const [labsReloadCount, setLabsReloadCount] = useState(0);
 
-  const [completedLabSlugs, setCompletedLabSlugs] = useState(
-    loadCompletedLabSlugs
-  );
-  const [learnerId] = useState(loadOrCreateLearnerId);
-  const [progressSyncStatus, setProgressSyncStatus] = useState("syncing");
   const [isClassSetupOpen, setIsClassSetupOpen] = useState(false);
   const [isJoinClassOpen, setIsJoinClassOpen] = useState(false);
   const [className, setClassName] = useState("");
@@ -713,29 +758,34 @@ function App() {
   const [joinedClass, setJoinedClass] = useState(null);
 
   useEffect(() => {
+    if (!currentStudent) return;
     try {
       window.localStorage.setItem(
-        PROGRESS_STORAGE_KEY,
+        progressStorageKey(currentStudent.usn),
         JSON.stringify(completedLabSlugs)
       );
     } catch {
       // Progress still works for this visit if browser storage is unavailable.
     }
-  }, [completedLabSlugs]);
+  }, [completedLabSlugs, currentStudent]);
 
+  const notificationOwner = accessMode === "faculty"
+    ? currentFaculty?.facultyId
+    : currentStudent?.usn;
   // Sync saved progress with the API. The browser copy is a fallback and also
   // lets older local completions be uploaded the first time this is connected.
   useEffect(() => {
+    if (!currentStudent) return undefined;
     const controller = new AbortController();
 
     async function syncProgress() {
       setProgressSyncStatus("syncing");
 
       try {
-        const response = await fetch(
-          `${PROGRESS_API_URL}/${encodeURIComponent(learnerId)}`,
-          { signal: controller.signal }
-        );
+        const response = await fetch(PROGRESS_API_URL, {
+          credentials: "include",
+          signal: controller.signal,
+        });
 
         if (!response.ok) {
           throw new Error(`Progress load failed with status ${response.status}`);
@@ -747,7 +797,7 @@ function App() {
               .map((lab) => lab.slug)
               .filter((slug) => typeof slug === "string")
           : [];
-        const localSlugs = loadCompletedLabSlugs();
+        const localSlugs = loadCompletedLabSlugs(currentStudent.usn);
         const mergedSlugs = [...new Set([...serverSlugs, ...localSlugs])];
 
         setCompletedLabSlugs(mergedSlugs);
@@ -757,7 +807,7 @@ function App() {
         );
         await Promise.all(
           slugsToUpload.map((slug) =>
-            saveLabProgress(learnerId, slug, controller.signal)
+            saveLabProgress(slug, controller.signal)
           )
         );
 
@@ -770,7 +820,7 @@ function App() {
 
     syncProgress();
     return () => controller.abort();
-  }, [learnerId]);
+  }, [currentStudent]);
 
   // The lab currently shown in the preview modal (null = modal is closed).
   const [selectedLab, setSelectedLab] = useState(null);
@@ -795,13 +845,32 @@ function App() {
     setStatusMessage(message);
   }
 
+  async function signOutStudent() {
+    try {
+      const authUrl = accessMode === "faculty" ? FACULTY_AUTH_URL : STUDENT_AUTH_URL;
+      await fetch(`${authUrl}/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      handleAction("Could not reach the server to end your session.");
+    } finally {
+      setCurrentStudent(null);
+      setCurrentFaculty(null);
+      setCompletedLabSlugs([]);
+      setProgressSyncStatus("local");
+      setReadNotificationIds([]);
+      setStudentAuthStatus("signed-out");
+    }
+  }
+
   function markLabComplete(slug) {
     setCompletedLabSlugs((current) =>
       current.includes(slug) ? current : [...current, slug]
     );
 
     setProgressSyncStatus("syncing");
-    saveLabProgress(learnerId, slug)
+    saveLabProgress(slug)
       .then(() => setProgressSyncStatus("synced"))
       .catch(() => setProgressSyncStatus("local"));
   }
@@ -847,6 +916,7 @@ function App() {
     try {
       const response = await fetch(CLASSROOMS_API_URL, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: trimmedName,
@@ -890,8 +960,8 @@ function App() {
     event.preventDefault();
     const joinCode = joinCodeInput.replace(/\s/g, "").toUpperCase();
 
-    if (!/^[A-F0-9]{8}$/.test(joinCode)) {
-      setClassJoinError("Enter the 8-character code provided by your teacher.");
+    if (!/^(?:[A-F0-9]{8}|[A-F0-9]{12})$/.test(joinCode)) {
+      setClassJoinError("Enter a valid class code (8 or 12 characters).");
       return;
     }
 
@@ -928,6 +998,19 @@ function App() {
     setIsPracticing(false);
     setSelectedLab(lab);
     handleAction(`Previewing the "${lab.title}" lab.`);
+  }
+
+  function resumeCourse(item, event) {
+    const lab = labs.find((candidate) => candidate.slug === item.labSlug);
+    if (!lab) {
+      handleAction(`The lab for "${item.title}" is not available right now.`);
+      return;
+    }
+
+    lastFocusedRef.current = event.currentTarget;
+    setSelectedLab(lab);
+    setIsPracticing(true);
+    handleAction(`Resuming "${item.title}" in the ${lab.title} lab.`);
   }
 
   function closeLabPreview() {
@@ -1003,9 +1086,10 @@ function App() {
 
     // Only run on devices with a real mouse, and only if the person has
     // not asked for reduced motion.
-    const hasMouse = window.matchMedia("(hover: hover) and (pointer: fine)");
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (!hasMouse.matches || reduceMotion.matches) return;
+    // Listen for mouse pointers even on hybrid touch laptops. Pointer type is
+    // checked in the handler, so touch input still does not create a trail.
+    if (reduceMotion.matches) return;
 
     let targetX = 0; // where the mouse is
     let targetY = 0;
@@ -1050,6 +1134,11 @@ function App() {
       // (relative to the panel) so CSS can place a faint highlight there.
       if (event.target instanceof Element) {
         const panel = event.target.closest(".panel");
+        // Match the cursor trail to the safety card's red warning theme.
+        glow.classList.toggle(
+          "is-safety",
+          Boolean(event.target.closest(".safety-note"))
+        );
         if (panel) {
           const box = panel.getBoundingClientRect();
           panel.style.setProperty("--mx", event.clientX - box.left + "px");
@@ -1077,7 +1166,7 @@ function App() {
       document.documentElement.removeEventListener("pointerenter", handlePointerEnter);
       if (frameId !== null) cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [studentAuthStatus]);
 
   // Modal behavior: runs while the modal is open.
   // - stops the page behind it from scrolling
@@ -1149,8 +1238,74 @@ function App() {
     }
   }, [isModalOpen, isPracticing]);
 
+  const notifications = [
+    ...(labsStatus === "success" && labs.length > 0
+      ? [{ id: "labs-ready", title: "Practice labs are ready", detail: `${labs.length} published labs are available in your workspace.` }]
+      : []),
+    ...(currentStudent && completedLabSlugs.length > 0
+      ? [{ id: "progress-saved", title: "Your progress is saved", detail: `${completedLabSlugs.length} completed lab${completedLabSlugs.length === 1 ? "" : "s"} recorded for your account.` }]
+      : []),
+    ...(joinedClass
+      ? [{ id: `joined-${joinedClass.name}`, title: `Joined ${joinedClass.name}`, detail: `${joinedClass.labs.length} assigned lab${joinedClass.labs.length === 1 ? "" : "s"} are ready to open.` }]
+      : []),
+    ...(createdClassPreview
+      ? [{ id: `created-${createdClassPreview.id}`, title: `Class created: ${createdClassPreview.name}`, detail: `Share join code ${createdClassPreview.joinCode} with your learners.` }]
+      : []),
+  ];
+  const unreadNotifications = notifications.filter((item) => !readNotificationIds.includes(item.id));
+  const completedAvailableLabs = labs.filter((lab) => completedLabSlugs.includes(lab.slug)).length;
+  const studentProgressPercent = labs.length > 0
+    ? Math.round((completedAvailableLabs / labs.length) * 100)
+    : 0;
+
+  function markNotificationsRead() {
+    const nextReadIds = [...new Set([...readNotificationIds, ...notifications.map((item) => item.id)])];
+    setReadNotificationIds(nextReadIds);
+    try {
+      if (notificationOwner) {
+        window.localStorage.setItem(`cpl.notifications.read.${notificationOwner}`, JSON.stringify(nextReadIds));
+      }
+    } catch {
+      // The notifications remain usable for this visit if storage is unavailable.
+    }
+  }
+
+  if (studentAuthStatus === "checking") {
+    return (
+      <main className="student-access-shell" role="status" aria-live="polite">
+        <p className="student-access-intro">Checking your student session…</p>
+      </main>
+    );
+  }
+
+  if (studentAuthStatus === "signed-out") {
+    return (
+      <AccessPortal
+        onStudentAuthenticated={(student) => {
+          setCurrentFaculty(null);
+          setCurrentStudent(student);
+          setCompletedLabSlugs(loadCompletedLabSlugs(student.usn));
+          setProgressSyncStatus("syncing");
+          setReadNotificationIds(loadReadNotificationIds(student.usn));
+          setAccessMode("student");
+          setStudentAuthStatus("signed-in");
+        }}
+        onFacultyAuthenticated={(faculty) => {
+          setCurrentStudent(null);
+          setCurrentFaculty(faculty);
+          setCompletedLabSlugs([]);
+          setProgressSyncStatus("local");
+          setReadNotificationIds(loadReadNotificationIds(faculty.facultyId));
+          setAccessMode("faculty");
+          setStudentAuthStatus("signed-in");
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app">
+      <MatrixElectricField />
       {/* Decorative glow that follows the mouse (hidden from screen readers) */}
       <div className="cursor-glow" ref={cursorGlowRef} aria-hidden="true"></div>
 
@@ -1161,16 +1316,58 @@ function App() {
             <span className="brand-name">Cyber Practice Lab</span>
           </div>
           <div className="header-actions">
-            <span className="pill">Student preview</span>
+            <span className="pill">
+              {accessMode === "faculty" ? currentFaculty?.facultyId : currentStudent?.usn}
+            </span>
             <button
               type="button"
               className="button button-ghost"
-              onClick={() =>
-                handleAction("You have 2 new notifications. (Mock action)")
-              }
+              onClick={signOutStudent}
             >
-              Notifications
+              Sign out
             </button>
+            <div className="notifications-anchor">
+              <button
+                type="button"
+                className="button button-ghost"
+                aria-expanded={isNotificationsOpen}
+                aria-controls="notifications-panel"
+                onClick={() => setIsNotificationsOpen((open) => !open)}
+              >
+                Notifications{unreadNotifications.length > 0 ? ` (${unreadNotifications.length})` : ""}
+              </button>
+              {isNotificationsOpen && (
+                <section id="notifications-panel" className="notifications-panel" aria-label="Notifications">
+                  <div className="notifications-heading">
+                    <div>
+                      <p className="modal-eyebrow">Your updates</p>
+                      <h2 className="role-title">Notifications</h2>
+                    </div>
+                    <button type="button" className="button button-ghost notifications-close" onClick={() => setIsNotificationsOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                  {unreadNotifications.length > 0 && (
+                    <button type="button" className="button button-secondary notifications-mark-read" onClick={markNotificationsRead}>
+                      Mark all as read
+                    </button>
+                  )}
+                  {notifications.length === 0 ? (
+                    <p className="notification-empty">You’re all caught up. Updates will appear here as you use your workspace.</p>
+                  ) : (
+                    <ul className="notification-list">
+                      {notifications.map((item) => (
+                        <li key={item.id} className={`notification-item${readNotificationIds.includes(item.id) ? " is-read" : ""}`}>
+                          <span className="notification-dot" aria-hidden="true" />
+                          <div><strong>{item.title}</strong><p>{item.detail}</p></div>
+                          {!readNotificationIds.includes(item.id) && <span className="notification-new">New</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1224,40 +1421,49 @@ function App() {
         {/* Role cards */}
         <section className="section" aria-labelledby="roles-heading">
           <h2 id="roles-heading" className="section-title">
-            How would you like to start?
+            {accessMode === "faculty" ? "Faculty workspace" : "How would you like to start?"}
           </h2>
           <div className="role-grid">
-            {roles.map((role) => (
+            {(accessMode === "faculty" ? [{
+              id: "teach",
+              tag: "Faculty workspace",
+              title: "Teach a class",
+              description: "Create a class, assign practice labs, and share its join code with learners.",
+              buttonLabel: "Set up a class",
+              buttonClass: "button-primary",
+            }] : roles).map((role) => (
               <article
                 key={role.id}
                 className={`panel role-card role-card-${role.id}`}
               >
-                <p className="role-tag">{role.tag}</p>
-                <h3 className="role-title">{role.title}</h3>
-                <p className="card-text">{role.description}</p>
-                <button
-                  type="button"
-                  className={`button ${role.buttonClass}`}
-                  onClick={
-                    role.id === "teach" ? openClassSetup : startPracticing
-                  }
-                >
-                  {role.buttonLabel}
-                </button>
-                {role.id === "practice" && (
+                <div className="role-card-copy">
+                  <p className="role-tag">{role.tag}</p>
+                  <h3 className="role-title">{role.title}</h3>
+                  <p className="card-text">{role.description}</p>
+                </div>
+                <div className="role-card-actions">
                   <button
                     type="button"
-                    className="button button-secondary"
-                    onClick={() => {
-                      setIsClassSetupOpen(false);
-                      setIsJoinClassOpen(true);
-                      setClassJoinError("");
-                      setJoinedClass(null);
-                    }}
+                    className={`button ${role.buttonClass}`}
+                    onClick={role.id === "teach" ? openClassSetup : startPracticing}
                   >
-                    Join a class
+                    {role.buttonLabel}
                   </button>
-                )}
+                  {role.id === "practice" && (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => {
+                        setIsClassSetupOpen(false);
+                        setIsJoinClassOpen(true);
+                        setClassJoinError("");
+                        setJoinedClass(null);
+                      }}
+                    >
+                      Join a class
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -1311,7 +1517,7 @@ function App() {
                   <div className="practice-field">
                     <label className="field-label" htmlFor="class-join-code">Class code</label>
                     <p className="field-hint" id="class-join-code-hint">
-                      Ask your teacher for the 8-character code.
+                      New class codes are 12 characters; older 8-character codes still work.
                     </p>
                     <input
                       id="class-join-code"
@@ -1374,8 +1580,7 @@ function App() {
                     Class join code: <code>{createdClassPreview.joinCode}</code>
                   </p>
                   <p className="class-setup-note">
-                    Saved in the database. This prototype does not yet have
-                    teacher accounts or student join access.
+                    Saved in the database under your faculty account. Share the join code with your learners.
                   </p>
                   <div className="practice-actions">
                     <button
@@ -1519,11 +1724,7 @@ function App() {
                     <button
                       type="button"
                       className="button button-secondary"
-                      onClick={() =>
-                        handleAction(
-                          `Resuming "${item.title}" soon. (Mock action)`
-                        )
-                      }
+                      onClick={(event) => resumeCourse(item, event)}
                     >
                       Resume
                     </button>
@@ -1643,15 +1844,31 @@ function App() {
                 ))}
               </ul>
 
-              <button
-                type="button"
-                className="button button-ghost"
-                onClick={() =>
-                  handleAction("The full calendar is coming soon. (Mock action)")
-                }
-              >
-                View calendar
-              </button>
+              {accessMode === "student" && (
+                <section className="student-progress-summary" aria-labelledby="student-progress-heading">
+                  <div className="student-progress-heading-row">
+                    <h3 id="student-progress-heading" className="side-subtitle">Your lab progress</h3>
+                    <strong>{studentProgressPercent}%</strong>
+                  </div>
+                  <div
+                    className="progress student-progress-track"
+                    role="progressbar"
+                    aria-label="Student lab completion"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow={studentProgressPercent}
+                  >
+                    <span className="progress-fill" style={{ width: `${studentProgressPercent}%` }} />
+                  </div>
+                  <p className="progress-text">
+                    {labsStatus === "loading"
+                      ? "Loading your available labs…"
+                      : labs.length === 0
+                        ? "No published labs are available yet."
+                        : `${completedAvailableLabs} of ${labs.length} available labs completed`}
+                  </p>
+                </section>
+              )}
             </aside>
 
             {/* Safety note */}
@@ -1673,7 +1890,7 @@ function App() {
       <footer className="site-footer">
         <div className="container">
           <p className="footer-text">
-            Cyber Practice Lab &middot; Prototype with mock data
+            Cyber Practice Lab
           </p>
         </div>
       </footer>

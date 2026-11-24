@@ -1,0 +1,245 @@
+.access-portal-root {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: clamp(1rem, 4vw, 3rem);
+  color: #edf1f7;
+  background:
+    radial-gradient(ellipse at 12% 50%, rgba(181, 255, 46, 0.1), transparent 34%),
+    radial-gradient(ellipse at 88% 52%, rgba(181, 255, 46, 0.08), transparent 32%),
+    linear-gradient(150deg, #181d22, #101317 65%, #11171a);
+}
+
+.portal-target-surges {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.portal-zap {
+  fill: none;
+  stroke: #b5ff2e;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 22 42;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 5px rgba(181, 255, 46, 0.95));
+  animation: portal-zap-flow 0.9s linear infinite, portal-zap-flicker 1.8s ease-in-out infinite;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+@keyframes portal-zap-flow { to { stroke-dashoffset: -128; } }
+@keyframes portal-zap-flicker {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(181, 255, 46, 0.5)); }
+  48% { filter: drop-shadow(0 0 11px rgba(181, 255, 46, 1)); }
+}
+
+.portal-stage-welcome .portal-zap-welcome { opacity: 0.75; }
+.portal-stage-roles .portal-zap-student { opacity: 0.75; animation-delay: -0.2s, -0.8s; }
+.portal-stage-roles .portal-zap-faculty { opacity: 0.75; animation-delay: -0.7s, -1.4s; }
+
+.portal-stage-card {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 820px);
+  padding: clamp(1.5rem, 5vw, 3.25rem);
+  border: 1px solid rgba(223, 237, 248, 0.18);
+  border-radius: 30px;
+  background: linear-gradient(145deg, rgba(35, 42, 50, 0.96), rgba(22, 27, 33, 0.98));
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  transform-origin: center;
+}
+
+.portal-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: clamp(2.5rem, 7vh, 4.5rem);
+  font-size: 1.08rem;
+  font-weight: 750;
+}
+
+.portal-brand .student-access-mark { width: 1.2rem; height: 1.2rem; }
+
+.portal-welcome {
+  max-width: 630px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.portal-welcome h1,
+.portal-roles > h1 {
+  margin: 0.6rem 0 1rem;
+  color: #f4f6fa;
+  font-size: clamp(2.2rem, 5.5vw, 4rem);
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+}
+
+.portal-description {
+  max-width: 540px;
+  margin: 0 auto 2rem;
+  color: #a9b3c0;
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  line-height: 1.65;
+}
+
+.portal-action-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  min-width: 230px;
+  min-height: 58px;
+  padding: 0.9rem 1.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(214, 255, 159, 0.8);
+  border-radius: 999px;
+  color: #11170a;
+  background: linear-gradient(110deg, #a7f526, #c4ff54);
+  box-shadow: 0 0 26px rgba(181, 255, 46, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.portal-action-button span { font-size: 1.2rem; }
+.portal-action-button:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(181, 255, 46, 0.48); }
+.portal-action-button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+.portal-action-button:disabled { cursor: wait; }
+
+.portal-action-button.is-nuked {
+  animation: button-nuke 680ms cubic-bezier(0.2, 0.75, 0.25, 1) forwards;
+}
+
+@keyframes button-nuke {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  18% { transform: scale(1.08); filter: brightness(3); box-shadow: 0 0 65px 18px rgba(181, 255, 46, 0.9); }
+  48% { transform: scale(0.94); filter: brightness(2.1); opacity: 0.9; }
+  100% { transform: scale(0.72); filter: blur(16px) brightness(2.5); opacity: 0; }
+}
+
+.portal-hint {
+  margin: 1.1rem 0 0;
+  color: #788493;
+  font-size: 0.85rem;
+}
+
+.portal-roles { text-align: center; }
+.portal-roles > .portal-description { margin-bottom: 2.2rem; }
+.portal-roles > h1 { font-size: clamp(2rem, 4vw, 3rem); }
+
+.portal-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  text-align: left;
+}
+
+.portal-role-card {
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(56, 65, 74, 0.64), rgba(28, 33, 40, 0.84));
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.portal-role-card.is-selected {
+  border-color: rgba(181, 255, 46, 0.72);
+  box-shadow: 0 0 32px rgba(181, 255, 46, 0.2);
+  transform: scale(1.015);
+}
+
+.portal-role-symbol {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  margin-bottom: auto;
+  place-items: center;
+  border: 1px solid rgba(181, 255, 46, 0.35);
+  border-radius: 12px;
+  color: #c2ff60;
+  background: rgba(181, 255, 46, 0.09);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.portal-role-symbol-faculty { color: #9df4d4; border-color: rgba(91, 236, 190, 0.35); background: rgba(91, 236, 190, 0.08); }
+.portal-role-card h2 { margin: 1rem 0 0.4rem; font-size: 1.35rem; }
+.portal-role-card p { min-height: 3.2em; margin: 0 0 1.2rem; color: #a9b3c0; line-height: 1.55; }
+.portal-role-card .portal-action-button { width: 100%; min-width: 0; min-height: 50px; font-size: 0.92rem; }
+
+.portal-action-faculty {
+  border-color: rgba(134, 245, 203, 0.68);
+  background: linear-gradient(110deg, #6de9b9, #a3ffd7);
+  box-shadow: 0 0 24px rgba(91, 236, 190, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.portal-back-button {
+  display: block;
+  margin: 1.2rem auto 0;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  color: #a9b3c0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.portal-back-button:hover { color: #c9ff75; }
+
+.portal-stage-card.is-dissolving {
+  animation: portal-dissolve 680ms cubic-bezier(0.18, 0.72, 0.25, 1) forwards;
+}
+
+@keyframes portal-dissolve {
+  0% { opacity: 1; filter: brightness(1) blur(0); transform: scale(1); }
+  22% { opacity: 1; filter: brightness(2.5) saturate(1.8); transform: scale(1.012); }
+  100% { opacity: 0; filter: brightness(2.2) blur(18px); transform: scale(0.96); }
+}
+
+.portal-login-screen { position: relative; z-index: 2; width: 100%; animation: login-materialize 700ms ease both; }
+
+@keyframes login-materialize {
+  0% { opacity: 0; filter: blur(16px) brightness(2); transform: scale(1.035); }
+  55% { opacity: 0.7; filter: blur(3px) brightness(1.3); }
+  100% { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+}
+
+.portal-login-screen .student-access-shell { background: transparent; }
+
+@media (max-width: 640px) {
+  .portal-role-grid { grid-template-columns: 1fr; }
+  .portal-role-card { min-height: 210px; }
+  .portal-brand { margin-bottom: 2.3rem; }
+  .portal-stage-card { border-radius: 24px; }
+  .portal-zap { stroke-width: 3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-zap { animation: none; opacity: 0.35; }
+  .portal-stage-card.is-dissolving,
+  .portal-login-screen,
+  .portal-action-button.is-nuked { animation-duration: 30ms; }
+  .portal-role-card,
+  .portal-action-button { transition-duration: 30ms; }
+}

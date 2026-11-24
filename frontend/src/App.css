@@ -50,6 +50,17 @@ body {
     linear-gradient(180deg, var(--bg-mid) 0%, var(--bg) 75%);
 }
 
+.matrix-electric-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.74;
+  mix-blend-mode: screen;
+}
+
 .site-header,
 .main,
 .site-footer {
@@ -66,7 +77,7 @@ body {
 
 .main {
   flex: 1;
-  padding-top: 1rem;
+  padding-top: 0;
   padding-bottom: 2rem;
 }
 
@@ -79,25 +90,40 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 360px;
-  height: 360px;
+  width: 480px;
+  height: 480px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(181, 255, 46, 0.2) 0%,
-    rgba(181, 255, 46, 0.07) 40%,
+    rgba(181, 255, 46, 0.32) 0%,
+    rgba(181, 255, 46, 0.12) 42%,
     transparent 70%
   );
-  filter: blur(28px);
+  filter: blur(22px);
   opacity: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
   will-change: transform;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.4s ease, background 0.55s ease;
 }
 
 .cursor-glow.is-active {
   opacity: 1;
+}
+
+/* Keep the dashboard cursor light above its cards so the trail stays visible. */
+.app > .cursor-glow {
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+
+.cursor-glow.is-safety {
+  background: radial-gradient(
+    circle,
+    rgba(238, 111, 111, 0.32) 0%,
+    rgba(238, 111, 111, 0.12) 42%,
+    transparent 70%
+  );
 }
 
 /* ---------- Glass panel (shared by all cards) ---------- */
@@ -163,7 +189,10 @@ body {
 
 /* ---------- Header ---------- */
 .site-header {
+  position: relative;
+  z-index: 30;
   padding-top: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .header-inner {
@@ -205,6 +234,12 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.header-actions .button {
+  min-height: 36px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
 }
 
 .pill {
@@ -354,6 +389,22 @@ body {
   padding: 1.25rem 1.4rem;
 }
 
+.role-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.role-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+/* When a role is alone (learner or faculty view), let it fill the row. */
+.role-grid > .role-card:only-child {
+  grid-column: 1 / -1;
+}
+
 .role-card-teach {
   background:
     radial-gradient(360px 170px at 100% 0%, rgba(181, 255, 46, 0.1), transparent 70%),
@@ -381,6 +432,124 @@ body {
 
 .role-card .card-text {
   flex: 1;
+}
+
+.notifications-anchor {
+  position: relative;
+  z-index: 31;
+}
+
+.notifications-panel {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  width: min(420px, calc(100vw - 2rem));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(32, 38, 46, 0.995), rgba(23, 28, 35, 0.995));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: notification-panel-in 180ms ease both;
+}
+
+.notifications-heading,
+.notifications-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.notifications-heading {
+  align-items: flex-start;
+}
+
+.notifications-heading .role-title {
+  font-size: 1.15rem;
+}
+
+.notifications-close {
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.notifications-mark-read {
+  min-height: 34px;
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.notifications-panel .notification-empty {
+  margin-top: 0.85rem;
+}
+
+.notification-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(181, 255, 46, 0.2);
+  border-radius: 14px;
+  background: rgba(181, 255, 46, 0.045);
+}
+
+.notification-item.is-read {
+  border-color: var(--glass-border);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.notification-dot {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  margin-top: 0.38rem;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 12px rgba(181, 255, 46, 0.55);
+}
+
+.notification-item.is-read .notification-dot {
+  background: #697483;
+  box-shadow: none;
+}
+
+.notification-item strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.notification-item p,
+.notification-empty {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.notification-new {
+  margin-left: auto;
+  color: var(--lime);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@keyframes notification-panel-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ---------- Instructor class setup preview ---------- */
@@ -660,17 +829,41 @@ body {
 
 .safety-note {
   padding: 1.1rem 1.25rem;
-  border-left: 4px solid var(--lime);
+  background: linear-gradient(
+    145deg,
+    rgba(171, 58, 58, 0.2),
+    rgba(148, 163, 184, 0.07)
+  );
+  border: 1px solid rgba(238, 111, 111, 0.34);
+  border-left: 4px solid #e46e6e;
+}
+
+.safety-note.panel::before {
+  background: radial-gradient(
+    220px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(238, 111, 111, 0.12),
+    transparent 70%
+  );
+}
+
+.safety-note.panel:hover {
+  border-color: rgba(238, 111, 111, 0.55);
+  border-left-color: #ee7979;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 14px 32px rgba(0, 0, 0, 0.36),
+    0 0 20px rgba(238, 111, 111, 0.1);
 }
 
 .safety-title {
   margin: 0 0 0.4rem;
-  color: var(--lime);
+  color: #ff9292;
   font-size: 1.05rem;
 }
 
 .safety-text {
   margin: 0;
+  color: #f2e6e6;
   font-size: 0.95rem;
 }
 
@@ -1333,6 +1526,31 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .role-grid > .role-card:only-child {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    min-height: 12rem;
+    padding: 1.75rem 2rem;
+  }
+
+  .role-card:only-child .role-card-copy {
+    max-width: 52rem;
+  }
+
+  .role-card:only-child .role-card-actions {
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 185px;
+  }
+
+  .role-card:only-child .role-card-actions .button {
+    justify-content: center;
+    text-align: center;
+  }
+
   .lab-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1387,10 +1605,6 @@ body {
 
 /* ---------- Touch devices: no cursor glow ---------- */
 @media (hover: none), (pointer: coarse) {
-  .cursor-glow {
-    display: none;
-  }
-
   .panel::before {
     display: none;
   }
@@ -1402,8 +1616,16 @@ body {
     display: none;
   }
 
+  .matrix-electric-field {
+    opacity: 0.38;
+  }
+
   .modal-backdrop,
   .modal {
+    animation: none;
+  }
+
+  .notifications-panel {
     animation: none;
   }
 

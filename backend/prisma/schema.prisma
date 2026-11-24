@@ -46,8 +46,61 @@ model Classroom {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @db.VarChar(80)
   joinCode  String   @unique @db.VarChar(12)
+  facultyId String?  @db.Uuid
   createdAt DateTime @default(now())
   labs      Lab[]
+  faculty   FacultyAccount? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+
+  @@index([facultyId, createdAt])
 
   @@map("classrooms")
+}
+
+model StudentAccount {
+  id                String           @id @default(uuid()) @db.Uuid
+  usn               String           @unique @db.VarChar(20)
+  passwordHash      String?          @db.VarChar(256)
+  setupCodeHash     String?          @db.VarChar(256)
+  setupExpiresAt    DateTime?
+  createdAt         DateTime         @default(now())
+  sessions          StudentSession[]
+
+  @@map("student_accounts")
+}
+
+model StudentSession {
+  id        String         @id @default(uuid()) @db.Uuid
+  tokenHash String         @unique @db.VarChar(64)
+  studentId String         @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime       @default(now())
+  student   StudentAccount @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, expiresAt])
+  @@map("student_sessions")
+}
+
+model FacultyAccount {
+  id             String           @id @default(uuid()) @db.Uuid
+  facultyId      String           @unique @db.VarChar(24)
+  passwordHash   String?          @db.VarChar(256)
+  setupCodeHash  String?          @db.VarChar(256)
+  setupExpiresAt DateTime?
+  createdAt      DateTime         @default(now())
+  sessions       FacultySession[]
+  classrooms     Classroom[]
+
+  @@map("faculty_accounts")
+}
+
+model FacultySession {
+  id        String         @id @default(uuid()) @db.Uuid
+  tokenHash String         @unique @db.VarChar(64)
+  facultyId String         @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime       @default(now())
+  faculty   FacultyAccount @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([facultyId, expiresAt])
+  @@map("faculty_sessions")
 }
