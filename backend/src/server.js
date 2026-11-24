@@ -222,11 +222,22 @@ app.post("/api/student/activate", async (req, res, next) => {
     }
 
     const passwordHash = await hashSecret(password);
-    const activatedStudent = await prisma.studentAccount.update({
-      where: { id: student.id },
+    // Claim the one-time code atomically. A second simultaneous request will
+    // see count 0 after the first request clears the code and cannot activate.
+    const claimed = await prisma.studentAccount.updateMany({
+      where: {
+        id: student.id,
+        passwordHash: null,
+        setupCodeHash: student.setupCodeHash,
+        setupExpiresAt: { gt: new Date() },
+      },
       data: { passwordHash, setupCodeHash: null, setupExpiresAt: null },
-      select: { id: true, usn: true },
     });
+    if (claimed.count !== 1) {
+      recordAuthFailure(key);
+      return res.status(400).json({ error: "USN or setup code is invalid, or the code has expired." });
+    }
+    const activatedStudent = { id: student.id, usn: student.usn };
     authFailures.delete(key);
     const currentStudent = await startStudentSession(activatedStudent, res);
     res.status(201).json({ student: currentStudent });
@@ -318,10 +329,22 @@ app.post("/api/faculty/activate", async (req, res, next) => {
       return res.status(400).json({ error: "Faculty ID or setup code is invalid, or the code has expired." });
     }
 
-    const activeFaculty = await prisma.facultyAccount.update({
-      where: { id: faculty.id },
-      data: { passwordHash: await hashSecret(password), setupCodeHash: null, setupExpiresAt: null },
+    const passwordHash = await hashSecret(password);
+    // Atomically consume the setup code so concurrent requests cannot both win.
+    const claimed = await prisma.facultyAccount.updateMany({
+      where: {
+        id: faculty.id,
+        passwordHash: null,
+        setupCodeHash: faculty.setupCodeHash,
+        setupExpiresAt: { gt: new Date() },
+      },
+      data: { passwordHash, setupCodeHash: null, setupExpiresAt: null },
     });
+    if (claimed.count !== 1) {
+      recordAuthFailure(key);
+      return res.status(400).json({ error: "Faculty ID or setup code is invalid, or the code has expired." });
+    }
+    const activeFaculty = { id: faculty.id, facultyId: faculty.facultyId };
     authFailures.delete(key);
     res.status(201).json({ faculty: await startFacultySession(activeFaculty, res) });
   } catch (error) {
