@@ -383,6 +383,79 @@ body {
   flex: 1;
 }
 
+/* ---------- Instructor class setup preview ---------- */
+.class-setup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1.25rem;
+  scroll-margin-top: 1rem;
+}
+
+.class-setup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.class-setup-header .role-title {
+  margin: 0;
+}
+
+.class-lab-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.class-lab-option {
+  align-items: flex-start;
+}
+
+.class-lab-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.class-setup-note {
+  margin: 0;
+  padding-left: 0.8rem;
+  border-left: 3px solid rgba(181, 255, 46, 0.5);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.class-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.class-join-code {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.class-join-code code {
+  display: inline-flex;
+  margin-left: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  background: var(--lime-soft);
+  border: 1px solid rgba(181, 255, 46, 0.4);
+  border-radius: 8px;
+  color: var(--lime);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 /* ---------- Page layout (content + sidebar) ---------- */
 .layout {
   display: grid;

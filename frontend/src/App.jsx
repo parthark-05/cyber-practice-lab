@@ -60,7 +60,6 @@ const roles = [
       "Create a lab session, choose exercises, and track how your students are progressing.",
     buttonLabel: "Set up a class",
     buttonClass: "button-primary",
-    message: "Class setup is coming soon. (Mock action: Teach a class)",
   },
   {
     id: "practice",
@@ -70,7 +69,6 @@ const roles = [
       "Work through hands-on labs at your own pace and build skills with instant feedback.",
     buttonLabel: "Start practicing",
     buttonClass: "button-primary",
-    message: "Solo practice is coming soon. (Mock action: Practice on your own)",
   },
 ];
 
@@ -701,6 +699,11 @@ function App() {
   );
   const [learnerId] = useState(loadOrCreateLearnerId);
   const [progressSyncStatus, setProgressSyncStatus] = useState("syncing");
+  const [isClassSetupOpen, setIsClassSetupOpen] = useState(false);
+  const [className, setClassName] = useState("");
+  const [selectedSetupLabSlugs, setSelectedSetupLabSlugs] = useState([]);
+  const [classSetupError, setClassSetupError] = useState("");
+  const [createdClassPreview, setCreatedClassPreview] = useState(null);
 
   useEffect(() => {
     try {
@@ -794,6 +797,63 @@ function App() {
     saveLabProgress(learnerId, slug)
       .then(() => setProgressSyncStatus("synced"))
       .catch(() => setProgressSyncStatus("local"));
+  }
+
+  function openClassSetup() {
+    setIsClassSetupOpen(true);
+    setCreatedClassPreview(null);
+    setClassSetupError("");
+    handleAction("Set up a demo class by choosing a name and labs.");
+  }
+
+  function closeClassSetup() {
+    setIsClassSetupOpen(false);
+    setClassSetupError("");
+  }
+
+  function toggleSetupLab(slug) {
+    setSelectedSetupLabSlugs((current) =>
+      current.includes(slug)
+        ? current.filter((item) => item !== slug)
+        : [...current, slug]
+    );
+  }
+
+  function handleCreateClass(event) {
+    event.preventDefault();
+    const trimmedName = className.trim();
+
+    if (!trimmedName) {
+      setClassSetupError("Enter a class name to continue.");
+      return;
+    }
+
+    if (selectedSetupLabSlugs.length === 0) {
+      setClassSetupError("Choose at least one lab for this class.");
+      return;
+    }
+
+    const joinCode = `DEMO-${window.crypto
+      .randomUUID()
+      .replaceAll("-", "")
+      .slice(0, 6)
+      .toUpperCase()}`;
+
+    setCreatedClassPreview({
+      name: trimmedName,
+      joinCode,
+      labSlugs: selectedSetupLabSlugs,
+    });
+    setClassSetupError("");
+    handleAction(`Demo setup ready for "${trimmedName}".`);
+  }
+
+  function startPracticing() {
+    handleAction("Choose a lab below to start practicing.");
+    document.getElementById("labs-heading")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }
 
   function openLabPreview(lab, event) {
@@ -1112,13 +1172,157 @@ function App() {
                 <button
                   type="button"
                   className={`button ${role.buttonClass}`}
-                  onClick={() => handleAction(role.message)}
+                  onClick={
+                    role.id === "teach" ? openClassSetup : startPracticing
+                  }
                 >
                   {role.buttonLabel}
                 </button>
               </article>
             ))}
           </div>
+
+          {isClassSetupOpen && (
+            <section
+              className="panel class-setup-panel"
+              aria-labelledby="class-setup-heading"
+            >
+              <div className="class-setup-header">
+                <div>
+                  <p className="modal-eyebrow">Instructor workspace</p>
+                  <h3 id="class-setup-heading" className="role-title">
+                    Set up a class
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={closeClassSetup}
+                >
+                  Close
+                </button>
+              </div>
+
+              {createdClassPreview ? (
+                <div className="class-preview" role="status">
+                  <h4 className="card-title">Class preview created</h4>
+                  <p className="practice-text">
+                    <strong>{createdClassPreview.name}</strong> includes{" "}
+                    {createdClassPreview.labSlugs.length} lab
+                    {createdClassPreview.labSlugs.length === 1 ? "" : "s"}.
+                  </p>
+                  <p className="class-join-code">
+                    Demo join code: <code>{createdClassPreview.joinCode}</code>
+                  </p>
+                  <p className="class-setup-note">
+                    This is a frontend preview. The class and code are not saved
+                    for students yet.
+                  </p>
+                  <div className="practice-actions">
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => setCreatedClassPreview(null)}
+                    >
+                      Edit setup
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form className="practice-form" onSubmit={handleCreateClass}>
+                  <div className="practice-field">
+                    <label className="field-label" htmlFor="class-name">
+                      Class name
+                    </label>
+                    <p className="field-hint" id="class-name-hint">
+                      For example, “Intro to Web Security — Section A”.
+                    </p>
+                    <input
+                      id="class-name"
+                      className="field-input"
+                      type="text"
+                      maxLength={80}
+                      value={className}
+                      onChange={(event) => setClassName(event.target.value)}
+                      aria-describedby="class-name-hint"
+                      required
+                    />
+                  </div>
+
+                  <fieldset className="class-lab-fieldset">
+                    <legend className="quiz-legend">Choose labs</legend>
+                    {labsStatus === "loading" && (
+                      <p className="field-hint">Loading available labs…</p>
+                    )}
+                    {labsStatus === "error" && (
+                      <p className="field-hint" role="alert">
+                        Labs could not be loaded. Start the backend and try
+                        again.
+                      </p>
+                    )}
+                    {labsStatus === "success" && labs.length === 0 && (
+                      <p className="field-hint">No published labs are available.</p>
+                    )}
+                    {labs.length > 0 && (
+                      <div className="quiz-options">
+                        {labs.map((lab) => (
+                          <label
+                            key={lab.slug}
+                            className={`quiz-option class-lab-option${
+                              selectedSetupLabSlugs.includes(lab.slug)
+                                ? " is-selected"
+                                : ""
+                            }`}
+                          >
+                            <input
+                              className="quiz-input"
+                              type="checkbox"
+                              checked={selectedSetupLabSlugs.includes(lab.slug)}
+                              onChange={() => toggleSetupLab(lab.slug)}
+                            />
+                            <span>
+                              <strong>{lab.title}</strong>
+                              <span className="field-hint">
+                                {lab.difficulty} · {lab.time}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+
+                  {classSetupError && (
+                    <p className="quiz-feedback is-invalid" role="alert">
+                      {classSetupError}
+                    </p>
+                  )}
+
+                  <p className="class-setup-note">
+                    You can preview the class setup here. Saving it for students
+                    will be connected to the backend later.
+                  </p>
+
+                  <div className="practice-actions">
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      onClick={closeClassSetup}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="button button-primary"
+                      disabled={labsStatus !== "success" || labs.length === 0}
+                    >
+                      Create class preview
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+          )}
         </section>
 
         <div className="layout">
