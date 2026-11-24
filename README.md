@@ -4,7 +4,7 @@ A safe, guided cybersecurity learning platform for engineering colleges.
 
 ## Live website
 
-Not deployed yet. The Render deployment blueprint is in `render.yaml`. Once the first deployment is live, add its public URL here.
+Live website: https://cyber-practice-lab.onrender.com
 
 ## Problem
 
